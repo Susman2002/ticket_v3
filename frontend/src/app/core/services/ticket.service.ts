@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { Service, Ticket, CreateTicketRequest, QueueSummary, QRCurrent } from '../models/ticket.model';
+import { Service, Window, Ticket, CreateTicketRequest, QueueSummary, QRCurrent } from '../models/ticket.model';
 
 @Injectable({ providedIn: 'root' })
 export class TicketService {
@@ -33,5 +33,9 @@ export class TicketService {
 
   getQueueSummary(): Observable<QueueSummary[]> {
     return this.api.get<QueueSummary[]>('/queue');
+  }
+
+  getWindows(): Observable<Window[]> {
+    return this.api.get<Window[]>('/windows');
   }
 }

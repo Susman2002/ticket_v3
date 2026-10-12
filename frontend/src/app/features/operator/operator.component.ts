@@ -260,9 +260,10 @@ export class OperatorComponent implements OnInit, OnDestroy {
   }
 
   loadWindows(): void {
-    this.ticketService.getServices().subscribe(); // dummy to trigger
-    // We need a windows endpoint - let's use the admin service or create one
-    // For now, we'll fetch from a simple endpoint
+    this.ticketService.getWindows().subscribe({
+      next: (windows) => this.availableWindows.set(windows.filter(w => w.active)),
+      error: () => this.availableWindows.set([])
+    });
   }
 
   checkCurrentSession(): void {
