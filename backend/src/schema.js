@@ -42,9 +42,12 @@ CREATE TABLE IF NOT EXISTS operator_sessions (
   service_id INT REFERENCES services(id),
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP,
-  active BOOLEAN DEFAULT true,
-  UNIQUE (window_id, active) WHERE active
+  active BOOLEAN DEFAULT true
 );
+
+-- Partial unique index: una ventanilla activa por sesión
+CREATE UNIQUE INDEX IF NOT EXISTS uq_operator_sessions_window_active
+  ON operator_sessions(window_id) WHERE active;
 
 -- Ticket Sequences (numeración por servicio y fecha)
 CREATE TABLE IF NOT EXISTS ticket_sequences (
@@ -71,14 +74,16 @@ CREATE TABLE IF NOT EXISTS tickets (
   started_at TIMESTAMP,
   completed_at TIMESTAMP,
   cancelled_at TIMESTAMP,
-  transferred_at TIMESTAMP,
-  UNIQUE (service_id, number, date(created_at))
+  transferred_at TIMESTAMP
 );
+
+-- Partial unique index: número único por servicio y fecha (día)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tickets_service_number_date
+  ON tickets(service_id, number, CAST(created_at AS DATE));
 
 -- Índices útiles
 CREATE INDEX IF NOT EXISTS idx_tickets_status_service ON tickets(service_id, status);
 CREATE INDEX IF NOT EXISTS idx_tickets_token ON tickets(token);
-CREATE INDEX IF NOT EXISTS idx_operator_sessions_active ON operator_sessions(active) WHERE active;
 `;
 
 export async function initSchema() {
