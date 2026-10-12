@@ -26,13 +26,19 @@ import { Subject, takeUntil } from 'rxjs';
               <p class="text-sm text-gray-500">{{ currentSession()?.window_name }} • {{ currentSession()?.service_name }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
             @if (currentSession()) {
               <button
                 (click)="endSession()"
+                class="px-4 py-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
+              >
+                Cerrar sesión de trabajo
+              </button>
+              <button
+                (click)="logout()"
                 class="px-4 py-2 text-red-600 hover:text-red-700 text-sm font-medium"
               >
-                Cerrar sesión
+                Cerrar sesión completa
               </button>
             }
           </div>
@@ -429,8 +435,12 @@ export class OperatorPanelComponent implements OnInit, OnDestroy {
         this.currentTicket.set(null);
         this.router.navigate(['/operator']);
       },
-      error: (err) => alert(err.error?.error || 'Error al cerrar sesión')
+      error: (err) => alert(err.error?.error || 'Error al cerrar sesión de trabajo')
     });
+  }
+
+  logout(): void {
+    this.auth.logout();
   }
 
   formatTime(dateStr: string | null | undefined): string {

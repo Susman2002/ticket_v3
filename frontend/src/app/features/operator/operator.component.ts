@@ -22,23 +22,35 @@ import { Subject, takeUntil } from 'rxjs';
             <h1 class="text-xl font-bold text-gray-900">Panel de Operador</h1>
             <p class="text-sm text-gray-500">{{ auth.user()?.username }} • {{ auth.user()?.role }}</p>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
             @if (currentSession()) {
               <span class="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
                 Sesión activa: {{ currentSession()?.window_name }} • {{ currentSession()?.service_name }}
               </span>
               <button
                 (click)="endSession()"
+                class="px-4 py-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
+              >
+                Cerrar sesión de trabajo
+              </button>
+              <button
+                (click)="logout()"
                 class="px-4 py-2 text-red-600 hover:text-red-700 text-sm font-medium"
               >
-                Cerrar sesión
+                Cerrar sesión completa
               </button>
             } @else {
               <button
-                (click)="router.navigate(['/login'])"
-                class="px-4 py-2 text-gray-600 hover:text-gray-700 text-sm font-medium"
+                (click)="startSessionForm()"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
               >
-                Cerrar sesión
+                Iniciar sesión de trabajo
+              </button>
+              <button
+                (click)="logout()"
+                class="px-4 py-2 text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                Cerrar sesión completa
               </button>
             }
           </div>
@@ -48,7 +60,7 @@ import { Subject, takeUntil } from 'rxjs';
       <main class="max-w-7xl mx-auto px-6 py-8">
         @if (!currentSession()) {
           <!-- Start Session Form -->
-          <div class="max-w-2xl mx-auto bg-white rounded-lg shadow p-6">
+          <div id="session-form" class="max-w-2xl mx-auto bg-white rounded-lg shadow p-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Iniciar sesión de trabajo</h2>
             
             <form (ngSubmit)="startSession()" class="space-y-6">
@@ -339,8 +351,20 @@ export class OperatorComponent implements OnInit, OnDestroy {
         this.currentTicket.set(null);
         this.waitingTickets.set([]);
       },
-      error: (err) => alert(err.error?.error || 'Error al cerrar sesión')
+      error: (err) => alert(err.error?.error || 'Error al cerrar sesión de trabajo')
     });
+  }
+
+  logout(): void {
+    this.auth.logout();
+  }
+
+  startSessionForm(): void {
+    // Scroll to the session form section
+    const formElement = document.getElementById('session-form');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth' });
+    }
   }
 
   callNext(): void {
