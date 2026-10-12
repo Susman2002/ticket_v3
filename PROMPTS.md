@@ -41,11 +41,7 @@ Backend mínimo para el sistema de turnos con:
 
 4. **Sesiones de Operador**
    - `POST /api/operator/session/start` - Iniciar sesión (operador autenticado)
-     - Body: `{window_id, service_id}`
-     - Valida: ventanilla disponible, servicio activo
-     - Crea registro en `operator_sessions` con `active=true`
    - `POST /api/operator/session/end` - Finalizar sesión (operador)
-     - Marca `active=false`, `ended_at=NOW()`
    - `GET /api/operator/session/current` - Sesión actual del operador logueado
 
 5. **Cola de Espera**
@@ -54,54 +50,109 @@ Backend mínimo para el sistema de turnos con:
 
 6. **Llamar Siguiente**
    - `POST /api/operator/call-next` - Operador llama siguiente ticket de SU servicio
-     - Body: `{}` (usa service_id de la sesión activa)
-     - Transacción: primer ticket `waiting` → `called`, asigna `window_id`, `operator_session_id`, `called_at`
-     - Emite evento WebSocket `ticket_called`
 
 ---
 
-## Fase 3: Iniciar/Completar/Cancelar Atención, Transferencia, WebSocket Events (EN CURSO)
+## Fase 3: Iniciar/Completar/Cancelar Atención, Transferencia, WebSocket Events (COMPLETADA)
 
-### Qué se está implementando
+### Qué se implementó
 1. **Gestión de atención del ticket (operador)**
-   - `POST /api/operator/ticket/start` - Iniciar atención (ticket `called` → `in_service`, `started_at`)
-   - `POST /api/operator/ticket/complete` - Completar atención (ticket `in_service` → `completed`, `completed_at`)
-   - `POST /api/operator/ticket/cancel` - Cancelar atención (ticket `waiting`/`called`/`in_service` → `cancelled`, `cancelled_at`)
-   - Validaciones: solo el operador dueño de la sesión puede actuar sobre su ticket actual
+   - `POST /api/operator/ticket/start` - Iniciar atención
+   - `POST /api/operator/ticket/complete` - Completar atención
+   - `POST /api/operator/ticket/cancel` - Cancelar atención
 
 2. **Transferencia directa entre operadores**
    - `POST /api/operator/ticket/transfer` - Transferir ticket a otra ventanilla
-     - Body: `{ticket_id, target_window_id}`
-     - Valida: ventanilla destino tiene sesión activa, operador destino tiene sesión
-     - Ticket `in_service`/`called` → `transferred`, actualiza `window_id`, `operator_session_id`, `transferred_at`
-     - Emite `ticket_transferred` con ventanilla origen y destino
 
-3. **Eventos WebSocket (ya existe infraestructura, agregar eventos)**
-   - `ticket_updated` - Cambio de estado (called/in_service/completed/cancelled/transferred)
+3. **Eventos WebSocket**
+   - `ticket_updated` - Cambio de estado
    - `ticket_transferred` - Transferencia con info origen/destino
-   - `operator_session_started` / `operator_session_ended` (ya emitidos en Fase 2)
-   - `ticket_called` (ya emitido en Fase 2)
-   - `ticket_created` (ya emitido en Fase 1)
 
 4. **Endpoint para operador: ticket actual en atención**
    - `GET /api/operator/ticket/current` - Ticket en `called` o `in_service` de la sesión activa
 
-### Por qué esta implementación
-- Completa el ciclo de vida del ticket: waiting → called → in_service → completed/cancelled/transferred
-- Transferencia directa requiere ventanilla destino con sesión activa (regla de negocio)
-- WebSocket events para actualización en tiempo real en display, panel operador, seguimiento ciudadano
-- Validaciones estrictas: operador solo maneja tickets de su sesión/servicio
+---
 
-### Archivos a crear/modificar en /backend
-- `src/tickets.js` - Agregar funciones: startService, completeService, cancelService, transferTicket, getCurrentTicketForOperator
-- `src/server.js` - Agregar endpoints operador + integrar eventos WebSocket
+## Fase 4: Base del Frontend Angular con Tailwind, Configuración API/WebSocket, Login y Guards (EN CURSO)
+
+### Qué se está implementando
+1. **Proyecto Angular Standalone**
+   - Angular 18+ con standalone components
+   - Tailwind CSS configurado
+   - Estructura: `/frontend/src/app` con components, services, guards, interceptors
+
+2. **Configuración de entorno**
+   - `environment.ts` / `environment.prod.ts` con `apiUrl`, `wsUrl`, `publicFrontendUrl`
+   - Proxy config para desarrollo local
+
+3. **Servicios Angular**
+   - `ApiService` - HTTP client con interceptors para JWT
+   - `AuthService` - Login, logout, token storage, user state
+   - `WebSocketService` - Conexión WS, reconexión, eventos (QR_ROTATED, ticket_created, ticket_called, ticket_updated, ticket_transferred, operator_session_started, operator_session_ended)
+   - `TicketService` - Crear ticket, consultar ticket, colas
+   - `OperatorService` - Sesiones, llamar siguiente, iniciar/completar/cancelar/transferir
+   - `AdminService` - CRUD servicios, ventanillas, usuarios
+
+4. **Autenticación y Guards**
+   - `authGuard` - Rutas protegidas (operador, admin)
+   - `roleGuard` - Verificar rol específico
+   - `loginGuard` - Redirigir si ya autenticado
+   - Interceptor: añade `Authorization: Bearer <token>` automáticamente
+
+5. **Rutas principales (Lazy loading)**
+   - `/login` - Login admin/operador
+   - `/display` - Pantalla pública sala (QR + últimos llamados)
+   - `/kiosk/:token` - Kiosco público (validar QR, seleccionar servicio, emitir ticket)
+   - `/ticket/:token` - Seguimiento ciudadano (estado, posición, ventanilla, sonido al called)
+   - `/operator` - Panel operador (sesión, ventanilla, servicio, cola, llamar siguiente)
+   - `/operator/panel` - Ticket actual (iniciar, completar, cancelar, transferir)
+   - `/admin` - Dashboard admin
+   - `/admin/users` - Gestión operadores
+   - `/admin/services` - Gestión servicios
+   - `/admin/windows` - Gestión ventanillas
+
+6. **Componentes base**
+   - Layout con header/navigation según rol
+   - Componentes compartidos: QR display, ticket card, queue list, loading, error
+
+### Por qué esta implementación
+- Angular standalone + Tailwind = ligero, moderno, sin módulos NgModule
+- Servicios tipados con signals/reactive para estado reactivo
+- Guards funcionales (Angular 15+) para protección de rutas
+- WebSocket service con reconexión automática y sincronización con API al reconectar
+- Configuración por entornos para desarrollo (localhost) y producción (Vercel + Render)
+
+### Archivos a crear en /frontend
+- `package.json` - Angular, Tailwind, rxjs, zone.js
+- `angular.json` - Configuración proyecto standalone
+- `tailwind.config.js` - Configuración Tailwind
+- `src/main.ts` - Bootstrap aplicación
+- `src/app/app.routes.ts` - Rutas con lazy loading y guards
+- `src/app/app.config.ts` - Providers (HttpClient, guards, interceptors)
+- `src/environments/environment.ts` - Config desarrollo
+- `src/environments/environment.prod.ts` - Config producción
+- `src/app/core/services/` - api, auth, websocket, ticket, operator, admin
+- `src/app/core/guards/` - auth, role, login guards
+- `src/app/core/interceptors/` - auth interceptor
+- `src/app/features/` - login, display, kiosk, ticket, operator, admin
+- `src/app/shared/components/` - Componentes reutilizables
 
 ### Pruebas manuales esperadas al terminar
-1. Operador llama siguiente → ticket `called`
-2. `POST /api/operator/ticket/start` → ticket `in_service`, `started_at`
-3. `POST /api/operator/ticket/complete` → ticket `completed`, `completed_at`
-4. `POST /api/operator/ticket/cancel` (en waiting/called/in_service) → ticket `cancelled`
-5. Transferencia: operador A en ventanilla 1 transfiere a ventanilla 2 (con sesión activa) → ticket `transferred`, nueva ventanilla
-6. Verificar WebSocket events: `ticket_updated`, `ticket_transferred` llegan a clientes conectados
-7. `GET /api/operator/ticket/current` → ticket en atención del operador
-8. Validar que no se puede iniciar/completar/cancelar ticket de otro operador
+1. `ng serve` levanta frontend en `http://localhost:4200`
+2. `/login` - Login admin/operador funcional, redirige según rol
+3. `/display` - Muestra QR actual, cuenta regresiva 90s, últimos llamados, actualiza por WS
+4. `/kiosk/:token` - Valida QR token, permite seleccionar servicio, emite ticket
+5. `/ticket/:token` - Muestra estado, posición, ventanilla, sonido al called
+6. `/operator` - Login operador, iniciar sesión (ventanilla + servicio), ver cola, llamar siguiente
+7. `/operator/panel` - Ticket actual: iniciar, completar, cancelar, transferir
+8. `/admin/*` - Solo admin: CRUD usuarios, servicios, ventanillas
+9. Guards: acceso denegado sin login, redirección correcta según rol
+10. WebSocket: reconexión automática, eventos llegan a componentes
+
+---
+
+## Próximas fases (pendientes)
+- Fase 5: Display, Kiosco, Seguimiento ciudadano (UI completa)
+- Fase 6: Paneles de operador (UI completa)
+- Fase 7: Panel administrativo (UI completa)
+- Fase 8: Revisión manual, build, lint, preparación Render/Vercel
