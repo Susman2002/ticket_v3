@@ -6,6 +6,11 @@ import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { startRotation, stopRotation, getCurrent, validateToken } from './qr.js';
 import { createTicket, getTicketByToken, getWaitingTickets, getCalledTickets } from './tickets.js';
+import { authenticate, generateToken, authRequired, requireRole } from './auth.js';
+import { listServices, getServiceById, createService, updateService, deleteService } from './services.js';
+import { listWindows, getWindowById, createWindow, updateWindow, deleteWindow, isWindowAvailable } from './windows.js';
+import { startSession, endSession, getCurrentSession, getActiveSessions } from './operatorSessions.js';
+import { getWaitingTickets as getQueueWaiting, getQueueSummary, callNextTicket } from './queue.js';
 
 dotenv.config();
 
@@ -47,7 +52,6 @@ wss.on('connection', (ws) => {
 });
 
 // Emitir QR_ROTATED cada rotación
-const originalRotate = getCurrent;
 let lastToken = null;
 setInterval(() => {
   const current = getCurrent();
@@ -71,7 +75,198 @@ app.get('/api/qr/validate/:token', (req, res) => {
   res.json({ valid: validateToken(req.params.token) });
 });
 
-// Tickets
+// Auth
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    }
+    const user = await authenticate(username, password);
+    if (!user) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+    const token = generateToken({ id: user.id, username: user.username, role: user.role });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (e) {
+    console.error('Error en login:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Servicios (público: listar; admin: CRUD)
+app.get('/api/services', async (req, res) => {
+  try {
+    const services = await listServices(true);
+    res.json(services);
+  } catch (e) {
+    console.error('Error obteniendo servicios:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/services', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { name, prefix } = req.body;
+    if (!name || !prefix) {
+      return res.status(400).json({ error: 'name y prefix son requeridos' });
+    }
+    const service = await createService(name, prefix);
+    res.status(201).json(service);
+  } catch (e) {
+    console.error('Error creando servicio:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/services/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { name, prefix, active } = req.body;
+    const service = await updateService(req.params.id, name, prefix, active);
+    if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
+    res.json(service);
+  } catch (e) {
+    console.error('Error actualizando servicio:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/services/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const service = await deleteService(req.params.id);
+    if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
+    res.json(service);
+  } catch (e) {
+    console.error('Error eliminando servicio:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ventanillas (público: listar; admin: CRUD)
+app.get('/api/windows', async (req, res) => {
+  try {
+    const windows = await listWindows(true);
+    res.json(windows);
+  } catch (e) {
+    console.error('Error obteniendo ventanillas:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/windows', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name es requerido' });
+    const window = await createWindow(name);
+    res.status(201).json(window);
+  } catch (e) {
+    console.error('Error creando ventanilla:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/windows/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { name, active } = req.body;
+    const window = await updateWindow(req.params.id, name, active);
+    if (!window) return res.status(404).json({ error: 'Ventanilla no encontrada' });
+    res.json(window);
+  } catch (e) {
+    console.error('Error actualizando ventanilla:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/windows/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const window = await deleteWindow(req.params.id);
+    if (!window) return res.status(404).json({ error: 'Ventanilla no encontrada' });
+    res.json(window);
+  } catch (e) {
+    console.error('Error eliminando ventanilla:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Sesiones de Operador (requiere auth operador/admin)
+app.post('/api/operator/session/start', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const { window_id, service_id } = req.body;
+    if (!window_id || !service_id) {
+      return res.status(400).json({ error: 'window_id y service_id son requeridos' });
+    }
+    const session = await startSession(req.user.id, window_id, service_id);
+    broadcast('operator_session_started', { session, operator: req.user.username });
+    res.status(201).json(session);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error iniciando sesión:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/operator/session/end', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await endSession(req.user.id);
+    if (!session) return res.status(404).json({ error: 'No hay sesión activa' });
+    broadcast('operator_session_ended', { sessionId: session.id, operator: req.user.username });
+    res.json(session);
+  } catch (e) {
+    console.error('Error finalizando sesión:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.get('/api/operator/session/current', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) return res.status(404).json({ error: 'No hay sesión activa' });
+    res.json(session);
+  } catch (e) {
+    console.error('Error obteniendo sesión:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Cola de espera (público para display, operador para panel)
+app.get('/api/queue/:service_id', async (req, res) => {
+  try {
+    const tickets = await getQueueWaiting(req.params.service_id);
+    res.json(tickets);
+  } catch (e) {
+    console.error('Error obteniendo cola:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.get('/api/queue', async (req, res) => {
+  try {
+    const summary = await getQueueSummary();
+    res.json(summary);
+  } catch (e) {
+    console.error('Error obteniendo resumen colas:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Llamar siguiente (operador)
+app.post('/api/operator/call-next', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(400).json({ error: 'No hay sesión activa. Inicie sesión en una ventanilla primero.' });
+    }
+    const ticket = await callNextTicket(session.id);
+    broadcast('ticket_called', ticket);
+    res.json(ticket);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error llamando siguiente:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Tickets (público: crear con QR, consultar por token)
 app.post('/api/tickets', async (req, res) => {
   try {
     const { service_id, qr_token } = req.body;
@@ -106,21 +301,9 @@ app.get('/api/tickets/:token', async (req, res) => {
   }
 });
 
-// Servicios
-app.get('/api/services', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT id, name, prefix FROM services WHERE active = true ORDER BY id');
-    res.json(result.rows);
-  } catch (e) {
-    console.error('Error obteniendo servicios:', e);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
 // Iniciar servidor
 async function start() {
   try {
-    // Probar conexión DB
     await pool.query('SELECT 1');
     console.log('Conexión a PostgreSQL exitosa');
 
