@@ -5,7 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { startRotation, stopRotation, getCurrent, validateToken } from './qr.js';
-import { createTicket, getTicketByToken, getWaitingTickets, getCalledTickets } from './tickets.js';
+import { createTicket, getTicketByToken, getWaitingTickets, getCalledTickets, startService, completeService, cancelService, transferTicket, getCurrentTicketForOperator } from './tickets.js';
 import { authenticate, generateToken, authRequired, requireRole } from './auth.js';
 import { listServices, getServiceById, createService, updateService, deleteService } from './services.js';
 import { listWindows, getWindowById, createWindow, updateWindow, deleteWindow, isWindowAvailable } from './windows.js';
@@ -262,6 +262,110 @@ app.post('/api/operator/call-next', authRequired, requireRole('operator', 'admin
   } catch (e) {
     if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
     console.error('Error llamando siguiente:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Iniciar atención (operador)
+app.post('/api/operator/ticket/start', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(400).json({ error: 'No hay sesión activa' });
+    }
+    const { ticket_id } = req.body;
+    if (!ticket_id) {
+      return res.status(400).json({ error: 'ticket_id es requerido' });
+    }
+    const ticket = await startService(ticket_id, session.id);
+    broadcast('ticket_updated', ticket);
+    res.json(ticket);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error iniciando atención:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Completar atención (operador)
+app.post('/api/operator/ticket/complete', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(400).json({ error: 'No hay sesión activa' });
+    }
+    const { ticket_id } = req.body;
+    if (!ticket_id) {
+      return res.status(400).json({ error: 'ticket_id es requerido' });
+    }
+    const ticket = await completeService(ticket_id, session.id);
+    broadcast('ticket_updated', ticket);
+    res.json(ticket);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error completando atención:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Cancelar atención (operador)
+app.post('/api/operator/ticket/cancel', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(400).json({ error: 'No hay sesión activa' });
+    }
+    const { ticket_id } = req.body;
+    if (!ticket_id) {
+      return res.status(400).json({ error: 'ticket_id es requerido' });
+    }
+    const ticket = await cancelService(ticket_id, session.id);
+    broadcast('ticket_updated', ticket);
+    res.json(ticket);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error cancelando atención:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Transferir ticket (operador)
+app.post('/api/operator/ticket/transfer', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(400).json({ error: 'No hay sesión activa' });
+    }
+    const { ticket_id, target_window_id } = req.body;
+    if (!ticket_id || !target_window_id) {
+      return res.status(400).json({ error: 'ticket_id y target_window_id son requeridos' });
+    }
+    const result = await transferTicket(ticket_id, session.id, target_window_id);
+    const { transfer_info, ...ticket } = result;
+    broadcast('ticket_transferred', { ticket, transfer_info });
+    broadcast('ticket_updated', ticket);
+    res.json(result);
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    console.error('Error transfiriendo ticket:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ticket actual en atención (operador)
+app.get('/api/operator/ticket/current', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const session = await getCurrentSession(req.user.id);
+    if (!session) {
+      return res.status(404).json({ error: 'No hay sesión activa' });
+    }
+    const ticket = await getCurrentTicketForOperator(session.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'No hay ticket en atención' });
+    }
+    res.json(ticket);
+  } catch (e) {
+    console.error('Error obteniendo ticket actual:', e);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

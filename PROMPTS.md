@@ -18,14 +18,14 @@ Backend mínimo para el sistema de turnos con:
 
 ---
 
-## Fase 2: Auth JWT, Servicios, Ventanillas, Sesiones Operador, Cola, Llamar Siguiente (EN CURSO)
+## Fase 2: Auth JWT, Servicios, Ventanillas, Sesiones Operador, Cola, Llamar Siguiente (COMPLETADA)
 
-### Qué se está implementando
+### Qué se implementó
 1. **JWT Authentication**
    - `jsonwebtoken` dependency
    - `POST /api/auth/login` - Login admin/operador, retorna JWT
    - Middleware `authRequired` y `requireRole('admin'|'operator')`
-   - Passwords con bcrypt (ya implementado)
+   - Passwords con bcrypt
 
 2. **Servicios (CRUD admin)**
    - `GET /api/services` - Lista servicios activos (público)
@@ -58,30 +58,50 @@ Backend mínimo para el sistema de turnos con:
      - Transacción: primer ticket `waiting` → `called`, asigna `window_id`, `operator_session_id`, `called_at`
      - Emite evento WebSocket `ticket_called`
 
+---
+
+## Fase 3: Iniciar/Completar/Cancelar Atención, Transferencia, WebSocket Events (EN CURSO)
+
+### Qué se está implementando
+1. **Gestión de atención del ticket (operador)**
+   - `POST /api/operator/ticket/start` - Iniciar atención (ticket `called` → `in_service`, `started_at`)
+   - `POST /api/operator/ticket/complete` - Completar atención (ticket `in_service` → `completed`, `completed_at`)
+   - `POST /api/operator/ticket/cancel` - Cancelar atención (ticket `waiting`/`called`/`in_service` → `cancelled`, `cancelled_at`)
+   - Validaciones: solo el operador dueño de la sesión puede actuar sobre su ticket actual
+
+2. **Transferencia directa entre operadores**
+   - `POST /api/operator/ticket/transfer` - Transferir ticket a otra ventanilla
+     - Body: `{ticket_id, target_window_id}`
+     - Valida: ventanilla destino tiene sesión activa, operador destino tiene sesión
+     - Ticket `in_service`/`called` → `transferred`, actualiza `window_id`, `operator_session_id`, `transferred_at`
+     - Emite `ticket_transferred` con ventanilla origen y destino
+
+3. **Eventos WebSocket (ya existe infraestructura, agregar eventos)**
+   - `ticket_updated` - Cambio de estado (called/in_service/completed/cancelled/transferred)
+   - `ticket_transferred` - Transferencia con info origen/destino
+   - `operator_session_started` / `operator_session_ended` (ya emitidos en Fase 2)
+   - `ticket_called` (ya emitido en Fase 2)
+   - `ticket_created` (ya emitido en Fase 1)
+
+4. **Endpoint para operador: ticket actual en atención**
+   - `GET /api/operator/ticket/current` - Ticket en `called` o `in_service` de la sesión activa
+
 ### Por qué esta implementación
-- JWT para autenticación stateless, compatible con Render/Vercel
-- Separación clara: endpoints públicos vs admin vs operador
-- Sesiones de operador vinculadas a ventanilla + servicio (regla: un operador = un servicio por sesión)
-- Llamar siguiente atómico con transacción para evitar race conditions
-- Base para Fase 3 (iniciar/completar/cancelar/transferir atención + WebSocket events)
+- Completa el ciclo de vida del ticket: waiting → called → in_service → completed/cancelled/transferred
+- Transferencia directa requiere ventanilla destino con sesión activa (regla de negocio)
+- WebSocket events para actualización en tiempo real en display, panel operador, seguimiento ciudadano
+- Validaciones estrictas: operador solo maneja tickets de su sesión/servicio
 
 ### Archivos a crear/modificar en /backend
-- `package.json` - agregar `jsonwebtoken`
-- `src/auth.js` - JWT utils + middleware
-- `src/services.js` - CRUD servicios
-- `src/windows.js` - CRUD ventanillas
-- `src/operatorSessions.js` - Sesiones operador
-- `src/queue.js` - Cola + llamar siguiente
-- `src/server.js` - Integrar nuevos endpoints + middlewares
+- `src/tickets.js` - Agregar funciones: startService, completeService, cancelService, transferTicket, getCurrentTicketForOperator
+- `src/server.js` - Agregar endpoints operador + integrar eventos WebSocket
 
 ### Pruebas manuales esperadas al terminar
-1. `POST /api/auth/login` con admin → JWT token
-2. `POST /api/auth/login` con operador → JWT token
-3. `GET /api/services` (sin auth) → 3 servicios
-4. `POST /api/services` (con JWT admin) → crear servicio
-5. `GET /api/windows` → 3 ventanillas
-6. `POST /api/operator/session/start` (JWT operador) → sesión creada, ventanilla ocupada
-7. `GET /api/queue/:service_id` → tickets waiting
-8. `POST /api/operator/call-next` → ticket pasa a `called`, asigna ventanilla
-9. Verificar que no se puede iniciar 2 sesiones en misma ventanilla
-10. Verificar que operador solo ve su servicio en llamar siguiente
+1. Operador llama siguiente → ticket `called`
+2. `POST /api/operator/ticket/start` → ticket `in_service`, `started_at`
+3. `POST /api/operator/ticket/complete` → ticket `completed`, `completed_at`
+4. `POST /api/operator/ticket/cancel` (en waiting/called/in_service) → ticket `cancelled`
+5. Transferencia: operador A en ventanilla 1 transfiere a ventanilla 2 (con sesión activa) → ticket `transferred`, nueva ventanilla
+6. Verificar WebSocket events: `ticket_updated`, `ticket_transferred` llegan a clientes conectados
+7. `GET /api/operator/ticket/current` → ticket en atención del operador
+8. Validar que no se puede iniciar/completar/cancelar ticket de otro operador
