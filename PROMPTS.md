@@ -116,11 +116,9 @@ Backend mínimo para el sistema de turnos con:
 
 ---
 
-## Fase 5: Display, Kiosco, Seguimiento ciudadano (UI completa) (EN CURSO)
+## Fase 5: Display, Kiosco, Seguimiento ciudadano (UI completa) (COMPLETADA)
 
-### Qué se está implementando
-Mejorar y completar la UI de los componentes públicos ya existentes, enfocándose en:
-
+### Qué se implementó
 1. **Display (`/display`) - Pantalla pública de sala**
    - QR grande centrado con animación suave al rotar
    - Timer circular visual (90s) con progreso
@@ -149,30 +147,67 @@ Mejorar y completar la UI de los componentes públicos ya existentes, enfocándo
    - Auto-refresh vía WebSocket + fallback polling
    - Pantalla de "turno no encontrado" amigable
 
+4. **Componentes compartidos nuevos**
+   - `QRDisplayComponent` - QR con animación de rotación
+   - `TimerCircularComponent` - Timer circular con progreso y colores
+   - `TicketCardComponent` - Card de ticket con animación slide-in
+   - `StatusBadgeComponent` - Badge de estado con iconos SVG animados
+   - `AlertSoundComponent` - Sonido de alerta con fallback Web Audio API
+
+---
+
+## Fase 6: Paneles de Operador (UI completa) (EN CURSO)
+
+### Qué se está implementando
+1. **`/operator` - Panel principal operador**
+   - Header con estado de sesión claro (usuario, rol, sesión activa/inactiva)
+   - Formulario inicio sesión (ventanilla + servicio) con validaciones visuales
+   - Resumen de colas por servicio (cards con contadores animados en tiempo real)
+   - Lista de turnos en espera con animaciones y detalles
+   - Botón "Llamar siguiente" prominente con estado loading
+   - WebSocket: actualizaciones en tiempo real sin recargar
+   - Estados claros: sin sesión / con sesión / cargando
+
+2. **`/operator/panel` - Panel de atención**
+   - Ticket actual grande con estado visual prominente
+   - Botones de acción contextuales (Iniciar/Completar/Cancelar/Transferir)
+   - Selector de ventanilla destino para transferencia (solo ventanillas con sesión activa mismo servicio)
+   - Historial de timestamps del turno
+   - Confirmaciones antes de acciones destructivas
+   - Botones: "Cerrar sesión de trabajo" vs "Cerrar sesión completa" (logout real)
+
+3. **Componentes compartidos nuevos**
+   - `QueueCardComponent` - Card de cola con contador animado y color por servicio
+   - `ActionButtonComponent` - Botones de acción con estados loading/disabled/tooltip
+   - `TransferModalComponent` - Modal para confirmar transferencia con selector
+   - `SessionStatusComponent` - Badge de estado de sesión (activa/inactiva)
+   - `OperatorHeaderComponent` - Header reutilizable con acciones de sesión
+
 ### Por qué esta implementación
-- Los componentes base ya existen (Fase 4), ahora se pulen la UX/UI
-- Prioridad: experiencia ciudadana fluida, accesible y sin fricciones
-- WebSocket para tiempo real + fallback robusto
-- Tailwind para estilos consistentes y responsive
+- Los componentes base ya existen (Fase 4), ahora se pulen la UX/UI para operadores
+- Prioridad: flujo de trabajo eficiente, estados claros, feedback visual inmediato
+- WebSocket para tiempo real en colas y ticket actual
+- Acciones destructivas con confirmación
+- Distinción clara entre "cerrar sesión de trabajo" y "logout completo"
 
 ### Archivos a modificar en /frontend
-- `src/app/features/display/display.component.ts` + template
-- `src/app/features/kiosk/kiosk.component.ts` + template
-- `src/app/features/ticket/ticket.component.ts` + template
-- `src/app/shared/components/` - Nuevos componentes reutilizables (QRDisplay, TimerCircular, TicketCard, StatusBadge, AlertSound)
+- `src/app/features/operator/operator.component.ts` + template
+- `src/app/features/operator/operator-panel.component.ts` + template
+- `src/app/shared/components/` - Nuevos: QueueCard, ActionButton, TransferModal, SessionStatus, OperatorHeader
 
 ### Pruebas manuales esperadas al terminar
-1. `/display` - QR se actualiza solo cada 90s, timer circular, últimos 10 llamados con animación, sonido al nuevo llamado
-2. `/kiosk/<token_valido>` - Valida QR, muestra servicios, emite ticket con animación, muestra código copiable
-3. `/kiosk/<token_invalido>` - Muestra error claro "Acceso no válido..."
-3. `/ticket/<token>` - Estado, posición, ventanilla, sonido al called, timestamps, código copiable
-4. WebSocket: reconexión automática tras cortes, eventos llegan sin duplicados
-5. Responsive: probar en móvil, tablet, desktop, TV
-6. Accesibilidad: Tab navigation, screen reader labels, contraste
+1. `/operator` sin sesión - Formulario ventanilla+servicio visible, botones claros
+2. `/operator` con sesión - Colas en tiempo real, lista espera, botón "Llamar siguiente" funcional
+3. WebSocket: contadores se actualizan solos, nuevo llamado aparece en lista
+4. `/operator/panel` - Ticket actual grande, botones según estado (Iniciar solo en called, Completar solo in_service, etc.)
+5. Transferencia - Modal con selector solo ventanillas válidas (sesión activa, mismo servicio)
+6. Confirmaciones - Cancelar/Transferir piden confirmación
+7. "Cerrar sesión de trabajo" vuelve a formulario, "Cerrar sesión completa" → /login
+8. Responsive: escritorio y tablet
+9. Accesibilidad: Tab navigation, labels, contraste
 
 ---
 
 ## Próximas fases (pendientes)
-- Fase 6: Paneles de operador (UI completa)
 - Fase 7: Panel administrativo (UI completa)
 - Fase 8: Revisión manual, build, lint, preparación Render/Vercel

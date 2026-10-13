@@ -3,3 +3,8 @@ export { TimerCircularComponent } from './timer-circular.component';
 export { TicketCardComponent } from './ticket-card.component';
 export { StatusBadgeComponent } from './status-badge.component';
 export { AlertSoundComponent } from './alert-sound.component';
+export { QueueCardComponent } from './queue-card.component';
+export { ActionButtonComponent } from './action-button.component';
+export { TransferModalComponent } from './transfer-modal.component';
+export { SessionStatusComponent } from './session-status.component';
+export { OperatorHeaderComponent } from './operator-header.component';

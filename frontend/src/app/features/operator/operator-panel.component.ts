@@ -7,73 +7,64 @@ import { WebSocketService } from '../../core/services/websocket.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Ticket, OperatorSession } from '../../core/models/operator.model';
 import { Subject, takeUntil } from 'rxjs';
+import { OperatorHeaderComponent, ActionButtonComponent, TransferModalComponent, SessionStatusComponent } from '../../shared/components';
+
+interface WindowOption {
+  window_id: number;
+  window_name: string;
+  service_name: string;
+  operator_username?: string;
+}
 
 @Component({
   selector: 'app-operator-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, OperatorHeaderComponent, ActionButtonComponent, TransferModalComponent, SessionStatusComponent],
   template: `
     <div class="min-h-screen bg-gray-100">
       <!-- Header -->
-      <header class="bg-white shadow-sm">
-        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div class="flex items-center gap-4">
-            <a routerLink="/operator" class="text-blue-600 hover:underline text-sm font-medium">
-              ← Volver al panel
-            </a>
-            <div>
-              <h1 class="text-xl font-bold text-gray-900">Panel de Atención</h1>
-              <p class="text-sm text-gray-500">{{ currentSession()?.window_name }} • {{ currentSession()?.service_name }}</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-3">
-            @if (currentSession()) {
-              <button
-                (click)="endSession()"
-                class="px-4 py-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
-              >
-                Cerrar sesión de trabajo
-              </button>
-              <button
-                (click)="logout()"
-                class="px-4 py-2 text-red-600 hover:text-red-700 text-sm font-medium"
-              >
-                Cerrar sesión completa
-              </button>
-            }
-          </div>
-        </div>
-      </header>
+      <app-operator-header
+        [session]="currentSession()"
+        [username]="auth.user()?.username || ''"
+        [role]="auth.user()?.role || ''"
+        (onEndSession)="endSession()"
+        (onLogout)="logout()"
+        (onStartSession)="startSessionForm()"
+      ></app-operator-header>
 
       <main class="max-w-4xl mx-auto px-6 py-8">
         @if (!currentTicket()) {
           <!-- No active ticket -->
-          <div class="bg-white rounded-lg shadow p-12 text-center">
-            <svg class="w-20 h-20 text-gray-300 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
+          <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+            <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
             <h2 class="text-xl font-semibold text-gray-900 mb-2">No hay turno en atención</h2>
             <p class="text-gray-500 mb-6">Vaya al panel principal y presione "Llamar siguiente" para atender un turno</p>
-            <a routerLink="/operator" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-              </svg>
-              Ir al panel
-            </a>
+            <app-action-button
+              label="Ir al panel"
+              variant="primary"
+              size="lg"
+              icon="arrowRight"
+              (onClick)="router.navigate(['/operator'])"
+            ></app-action-button>
           </div>
         } @else {
           <!-- Active Ticket Card -->
-          <div class="bg-white rounded-lg shadow mb-8">
+          <div class="bg-white rounded-xl shadow-sm mb-8">
             <div class="p-6 border-b border-gray-200">
-              <div class="flex justify-between items-start">
+              <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                   <p class="text-sm text-gray-500 mb-1">Turno en atención</p>
                   <p class="text-4xl font-bold font-mono text-gray-900">{{ currentTicket()?.display_number }}</p>
                 </div>
-                <div class="text-right">
+                <div class="flex flex-col sm:flex-row items-end sm:items-center gap-3">
                   <span class="px-4 py-2 rounded-full text-lg font-medium" [ngClass]="statusClass()">
                     {{ statusLabel() }}
                   </span>
+                  <div class="text-sm text-gray-500">Ventanilla: {{ currentTicket()?.window_name }}</div>
                 </div>
               </div>
               <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -97,151 +88,113 @@ import { Subject, takeUntil } from 'rxjs';
             </div>
 
             <!-- Actions -->
-            <div class="bg-white rounded-lg shadow p-6 space-y-4">
+            <div class="bg-white rounded-xl shadow-sm p-6 space-y-4">
               <h3 class="font-semibold text-gray-900">Acciones</h3>
               
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- Iniciar Atención -->
                 @if (currentTicket()?.status === 'called') {
-                  <button
-                    (click)="startService()"
-                    [disabled]="actionLoading === 'start'"
-                    class="w-full py-3 px-6 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-                  >
-                    @if (actionLoading === 'start') {
-                      <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Iniciando...
-                    } @else {
-                      <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                      </svg>
-                      Iniciar atención
-                    }
-                  </button>
+                  <app-action-button
+                    label="Iniciar atención"
+                    variant="success"
+                    size="lg"
+                    [loading]="actionLoading === 'start'"
+                    icon="play"
+                    (onClick)="startService()"
+                  ></app-action-button>
                 }
 
                 <!-- Completar Atención -->
                 @if (currentTicket()?.status === 'in_service') {
-                  <button
-                    (click)="completeService()"
-                    [disabled]="actionLoading === 'complete'"
-                    class="w-full py-3 px-6 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                  >
-                    @if (actionLoading === 'complete') {
-                      <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Completando...
-                    } @else {
-                      <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                      Completar atención
-                    }
-                  </button>
+                  <app-action-button
+                    label="Completar atención"
+                    variant="primary"
+                    size="lg"
+                    [loading]="actionLoading === 'complete'"
+                    icon="check"
+                    (onClick)="completeService()"
+                  ></app-action-button>
                 }
 
                 <!-- Cancelar Atención -->
                 @if (['waiting', 'called', 'in_service'].includes(currentTicket()?.status || '')) {
-                  <button
-                    (click)="cancelService()"
-                    [disabled]="actionLoading === 'cancel'"
-                    class="w-full py-3 px-6 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-                  >
-                    @if (actionLoading === 'cancel') {
-                      <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Cancelando...
-                    } @else {
-                      <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                      Cancelar atención
-                    }
-                  </button>
+                  <app-action-button
+                    label="Cancelar atención"
+                    variant="danger"
+                    size="lg"
+                    [loading]="actionLoading === 'cancel'"
+                    icon="x"
+                    (onClick)="confirmCancel()"
+                  ></app-action-button>
                 }
 
                 <!-- Transferir -->
                 @if (['called', 'in_service'].includes(currentTicket()?.status || '')) {
                   <div class="sm:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Transferir a otra ventanilla</label>
-                    <div class="flex gap-3">
-                      <select
-                        [(ngModel)]="targetWindowId"
-                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      >
-                        <option value="">Seleccione ventanilla destino</option>
-                        @for (w of availableTargetWindows(); track w.window_id) {
-                          <option [value]="w.window_id">{{ w.window_name }} ({{ w.service_name }})</option>
-                        }
-                      </select>
-                      <button
-                        (click)="transferTicket()"
-                        [disabled]="!targetWindowId || actionLoading === 'transfer'"
-                        class="px-6 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors whitespace-nowrap"
-                      >
-                        @if (actionLoading === 'transfer') {
-                          <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        } @else {
-                          Transferir
-                        }
-                      </button>
-                    </div>
+                    <app-transfer-modal
+                      [isOpen]="transferModalOpen"
+                      [ticketDisplayNumber]="currentTicket()?.display_number || ''"
+                      [ticketServiceName]="currentTicket()?.service_name || ''"
+                      [availableWindows]="transferWindows()"
+                      [loading]="actionLoading === 'transfer'"
+                      (close)="closeTransferModal()"
+                      (confirm)="confirmTransfer($event)"
+                    ></app-transfer-modal>
+                    <app-action-button
+                      label="Transferir"
+                      variant="info"
+                      size="lg"
+                      [loading]="actionLoading === 'transfer'"
+                      icon="door"
+                      (onClick)="openTransferModal()"
+                    ></app-action-button>
                   </div>
                 }
               </div>
             </div>
-          </div>
 
-          <!-- History / Logs -->
-          <div class="bg-white rounded-lg shadow">
-            <div class="p-6 border-b border-gray-200">
-              <h3 class="font-semibold text-gray-900">Historial del turno</h3>
-            </div>
-            <div class="divide-y divide-gray-200">
-              <div class="p-4">
-                <p class="text-sm text-gray-500">Creado</p>
-                <p class="font-medium">{{ formatTime(currentTicket()?.created_at) }}</p>
+            <!-- History / Logs -->
+            <div class="bg-white rounded-xl shadow-sm mt-6">
+              <div class="p-6 border-b border-gray-200">
+                <h3 class="font-semibold text-gray-900">Historial del turno</h3>
               </div>
-              @if (currentTicket()?.called_at) {
-                <div class="p-4 bg-blue-50">
-                  <p class="text-sm text-blue-700">Llamado - Ventanilla: {{ currentTicket()?.window_name }}</p>
-                  <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
+              <div class="divide-y divide-gray-200">
+                <div class="p-4">
+                  <p class="text-sm text-gray-500">Creado</p>
+                  <p class="font-medium">{{ formatTime(currentTicket()?.created_at) }}</p>
                 </div>
-              }
-              @if (currentTicket()?.started_at) {
-                <div class="p-4 bg-green-50">
-                  <p class="text-sm text-green-700">Atención iniciada</p>
-                  <p class="font-medium">{{ formatTime(currentTicket()?.started_at) }}</p>
-                </div>
-              }
-              @if (currentTicket()?.completed_at) {
-                <div class="p-4 bg-gray-50">
-                  <p class="text-sm text-gray-700">Completado</p>
-                  <p class="font-medium">{{ formatTime(currentTicket()?.completed_at) }}</p>
-                </div>
-              }
-              @if (currentTicket()?.cancelled_at) {
-                <div class="p-4 bg-red-50">
-                  <p class="text-sm text-red-700">Cancelado</p>
-                  <p class="font-medium">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
-                </div>
-              }
-              @if (currentTicket()?.transferred_at) {
-                <div class="p-4 bg-purple-50">
-                  <p class="text-sm text-purple-700">Transferido a {{ currentTicket()?.window_name }}</p>
-                  <p class="font-medium">{{ formatTime(currentTicket()?.transferred_at) }}</p>
-                </div>
-              }
+                @if (currentTicket()?.called_at) {
+                  <div class="p-4 bg-blue-50">
+                    <p class="text-sm text-blue-700">Llamado - Ventanilla: {{ currentTicket()?.window_name }}</p>
+                    <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
+                  </div>
+                }
+                @if (currentTicket()?.started_at) {
+                  <div class="p-4 bg-green-50">
+                    <p class="text-sm text-green-700">Atención iniciada</p>
+                    <p class="font-medium">{{ formatTime(currentTicket()?.started_at) }}</p>
+                  </div>
+                }
+                @if (currentTicket()?.completed_at) {
+                  <div class="p-4 bg-gray-50">
+                    <p class="text-sm text-gray-700">Completado</p>
+                    <p class="font-medium">{{ formatTime(currentTicket()?.completed_at) }}</p>
+                  </div>
+                }
+                @if (currentTicket()?.cancelled_at) {
+                  <div class="p-4 bg-red-50">
+                    <p class="text-sm text-red-700">Cancelado</p>
+                    <p class="font-medium">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
+                  </div>
+                }
+                @if (currentTicket()?.transferred_at) {
+                  <div class="p-4 bg-purple-50">
+                    <p class="text-sm text-purple-700">Transferido a {{ currentTicket()?.window_name }}</p>
+                    <p class="font-medium">{{ formatTime(currentTicket()?.transferred_at) }}</p>
+                  </div>
+                }
+              </div>
             </div>
           </div>
         }
@@ -253,8 +206,8 @@ import { Subject, takeUntil } from 'rxjs';
 export class OperatorPanelComponent implements OnInit, OnDestroy {
   private operatorService = inject(OperatorService);
   private ws = inject(WebSocketService);
-  private auth = inject(AuthService);
-  private router = inject(Router);
+  auth = inject(AuthService);
+  router = inject(Router);
   private destroy$ = new Subject<void>();
 
   currentSession = signal<OperatorSession | null>(null);
@@ -262,15 +215,19 @@ export class OperatorPanelComponent implements OnInit, OnDestroy {
   targetWindowId: number | null = null;
   actionLoading: 'start' | 'complete' | 'cancel' | 'transfer' | null = null;
   activeSessions = signal<any[]>([]);
+  transferModalOpen = false;
 
-  availableTargetWindows = computed(() => {
+  transferWindows = computed(() => {
     const currentServiceId = this.currentSession()?.service_id;
     const currentWindowId = this.currentSession()?.window_id;
-    return this.activeSessions().filter(s => 
-      s.service_id === currentServiceId && 
-      s.window_id !== currentWindowId && 
-      s.active
-    );
+    return this.activeSessions()
+      .filter(s => s.service_id === currentServiceId && s.window_id !== currentWindowId && s.active)
+      .map(s => ({
+        window_id: s.window_id,
+        window_name: s.window_name,
+        service_name: s.service_name,
+        operator_username: s.username
+      }));
   });
 
   statusClass = computed(() => {
@@ -388,10 +345,14 @@ export class OperatorPanelComponent implements OnInit, OnDestroy {
     });
   }
 
-  cancelService(): void {
+  confirmCancel(): void {
     if (!this.currentTicket()) return;
     if (!confirm('¿Está seguro de cancelar este turno?')) return;
-    
+    this.cancelService();
+  }
+
+  cancelService(): void {
+    if (!this.currentTicket()) return;
     this.actionLoading = 'cancel';
     this.operatorService.cancelService({ ticket_id: this.currentTicket()!.id }).subscribe({
       next: (ticket) => {
@@ -405,13 +366,22 @@ export class OperatorPanelComponent implements OnInit, OnDestroy {
     });
   }
 
-  transferTicket(): void {
-    if (!this.currentTicket() || !this.targetWindowId) return;
+  openTransferModal(): void {
+    this.transferModalOpen = true;
+  }
+
+  closeTransferModal(): void {
+    this.transferModalOpen = false;
+  }
+
+  confirmTransfer(windowId: number): void {
+    if (!this.currentTicket()) return;
     this.actionLoading = 'transfer';
+    this.transferModalOpen = false;
     
     this.operatorService.transferTicket({
       ticket_id: this.currentTicket()!.id,
-      target_window_id: this.targetWindowId
+      target_window_id: windowId
     }).subscribe({
       next: (result) => {
         this.currentTicket.set(null);
@@ -437,6 +407,10 @@ export class OperatorPanelComponent implements OnInit, OnDestroy {
       },
       error: (err) => alert(err.error?.error || 'Error al cerrar sesión de trabajo')
     });
+  }
+
+  startSessionForm(): void {
+    this.router.navigate(['/operator']);
   }
 
   logout(): void {
