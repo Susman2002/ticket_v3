@@ -1,16 +1,15 @@
 import { Component, inject, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { QRCodeModule } from 'angularx-qrcode';
-import { environment } from '../../../environments/environment';
 import { TicketService } from '../../core/services/ticket.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { QRCurrent, Ticket } from '../../core/models/ticket.model';
 import { Subject, takeUntil } from 'rxjs';
+import { QRDisplayComponent, TimerCircularComponent, TicketCardComponent, AlertSoundComponent } from '../../shared/components';
 
 @Component({
   selector: 'app-display',
   standalone: true,
-  imports: [CommonModule, QRCodeModule],
+  imports: [CommonModule, QRDisplayComponent, TimerCircularComponent, TicketCardComponent, AlertSoundComponent],
   template: `
     <div class="min-h-screen bg-gray-900 text-white">
       <!-- Header -->
@@ -18,7 +17,7 @@ import { Subject, takeUntil } from 'rxjs';
         <div class="max-w-6xl mx-auto flex justify-between items-center">
           <h1 class="text-2xl font-bold">Sala de Espera</h1>
           <div class="text-right">
-            <p class="text-sm text-gray-400">Última actualización</p>
+            <p class="text-sm text-gray-400">Hora actual</p>
             <p class="font-mono text-lg" id="clock"></p>
           </div>
         </div>
@@ -28,30 +27,27 @@ import { Subject, takeUntil } from 'rxjs';
         <!-- QR Code Section -->
         <section class="lg:col-span-1">
           <div class="bg-gray-800 rounded-xl p-6 text-center">
-            <h2 class="text-xl font-semibold mb-4">Escanee para tomar turno</h2>
+            <h2 class="text-xl font-semibold mb-6">Escanee para tomar turno</h2>
             
-            <!-- QR Code -->
-            <div class="bg-white rounded-lg p-4 inline-block mb-4">
-              <qrcode
-                [qrdata]="qrUrl()"
-                [width]="256"
-                [errorCorrectionLevel]="'M'"
-                [cssClass]="'qr-code'">
-              </qrcode>
+            <!-- QR Code with rotation animation -->
+            <div class="mb-6">
+              <app-qr-display 
+                [qrData]="qrUrl()" 
+                [size]="280"
+                [rotating]="qrRotating()">
+              </app-qr-display>
             </div>
 
-            <!-- Timer -->
-            <div class="mb-4">
-              <div class="flex justify-center items-center gap-2 mb-2">
-                <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span class="text-3xl font-mono font-bold text-yellow-300">{{ qrTimer() }}s</span>
-              </div>
-              <p class="text-gray-400 text-sm">Tiempo para nuevo código QR</p>
+            <!-- Circular Timer -->
+            <div class="mb-6">
+              <app-timer-circular 
+                [seconds]="qrTimer()" 
+                [totalSeconds]="90">
+              </app-timer-circular>
+              <p class="text-gray-400 text-sm mt-2">Tiempo para nuevo código QR</p>
             </div>
 
-            <p class="text-gray-500 text-sm">{{ qrUrl() }}</p>
+            <p class="text-gray-500 text-sm break-all">{{ qrUrl() }}</p>
           </div>
         </section>
 
@@ -73,22 +69,11 @@ import { Subject, takeUntil } from 'rxjs';
               </div>
             } @else {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                @for (ticket of lastCalled(); track ticket.id) {
-                  <div class="bg-gray-700 rounded-lg p-4 border-l-4" [class.border-green-500]="ticket.status === 'completed'" [class.border-yellow-500]="ticket.status === 'in_service'" [class.border-blue-500]="ticket.status === 'called' || ticket.status === 'transferred'">
-                    <div class="flex justify-between items-start mb-2">
-                      <span class="text-2xl font-bold font-mono text-white">{{ ticket.display_number }}</span>
-                      <span class="px-2 py-1 rounded text-xs font-medium" [ngClass]="getStatusClass(ticket.status)">
-                        {{ getStatusLabel(ticket.status) }}
-                      </span>
-                    </div>
-                    <div class="text-gray-300 text-sm">
-                      <p>{{ ticket.service_name }}</p>
-                      <p class="font-medium">Ventanilla: {{ ticket.window_name || '—' }}</p>
-                    </div>
-                    <div class="mt-2 text-xs text-gray-500">
-                      Llamado: {{ formatTime(ticket.called_at) }}
-                    </div>
-                  </div>
+                @for (ticket of lastCalled(); track ticket.id; let i = $index) {
+                  <app-ticket-card 
+                    [ticket]="ticket" 
+                    [isNew]="i === 0 && ticketJustCalled()">
+                  </app-ticket-card>
                 }
               </div>
             }
@@ -96,8 +81,8 @@ import { Subject, takeUntil } from 'rxjs';
         </section>
       </main>
 
-      <!-- Audio for alerts -->
-      <audio #alertSound src="assets/alert.mp3" preload="auto"></audio>
+      <!-- Alert sound -->
+      <app-alert-sound [trigger]="soundTrigger()"></app-alert-sound>
     </div>
   `,
   styles: []
@@ -110,11 +95,15 @@ export class DisplayComponent implements OnInit, OnDestroy {
   qrData = signal<QRCurrent | null>(null);
   lastCalled = signal<Ticket[]>([]);
   qrTimer = signal(0);
+  qrRotating = signal(false);
+  ticketJustCalled = signal(false);
+  soundTrigger = signal(0);
   private timerInterval: any;
 
   qrUrl = computed(() => {
     if (!this.qrData()) return '';
-    return `${environment.publicFrontendUrl}/kiosk/${this.qrData()!.token}`;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/kiosk/${this.qrData()!.token}`;
   });
 
   ngOnInit(): void {
@@ -137,28 +126,26 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.qrTimer.set(data.remainingSeconds);
     });
 
-    this.ticketService.getQueueSummary().subscribe(summary => {
-      // Get last called from each service
-      this.ticketService.getQueueSummary().subscribe(() => {});
+    // Get last called tickets
+    this.ticketService.getQueueSummary().subscribe(() => {
+      // We'll populate via WebSocket events
     });
-
-    // Get called tickets
-    this.ticketService.getQueueSummary().subscribe(() => {});
-    // We'll use getCalledTickets equivalent via queue summary
-    // For now, let's get all tickets and filter
-    // Actually we need a specific endpoint - let's use the ticket service to get called
   }
 
   setupWebSocket(): void {
     this.ws.onQRRotated.pipe(takeUntil(this.destroy$)).subscribe(event => {
       this.qrData.set(event.data);
       this.qrTimer.set(event.data.remainingSeconds);
-      this.playAlert();
+      this.qrRotating.set(true);
+      setTimeout(() => this.qrRotating.set(false), 500);
+      this.playSound();
     });
 
     this.ws.onTicketCalled.pipe(takeUntil(this.destroy$)).subscribe(event => {
       this.lastCalled.update(tickets => [event.data, ...tickets].slice(0, 10));
-      this.playAlert();
+      this.ticketJustCalled.set(true);
+      setTimeout(() => this.ticketJustCalled.set(false), 1000);
+      this.playSound();
     });
 
     this.ws.onTicketUpdated.pipe(takeUntil(this.destroy$)).subscribe(event => {
@@ -171,16 +158,13 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.lastCalled.update(tickets =>
         tickets.map(t => t.id === event.data.ticket.id ? { ...t, ...event.data.ticket } : t)
       );
-      this.playAlert();
+      this.playSound();
     });
   }
 
   startTimer(): void {
     this.timerInterval = setInterval(() => {
       this.qrTimer.update(t => Math.max(0, t - 1));
-      if (this.qrTimer() === 0) {
-        // Will be updated by QR_ROTATED event
-      }
     }, 1000);
   }
 
@@ -192,36 +176,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     }
   }
 
-  playAlert(): void {
-    const audio = new Audio('assets/alert.mp3');
-    audio.play().catch(() => {}); // Ignore autoplay policy errors
-  }
-
-  getStatusClass(status: string): string {
-    switch (status) {
-      case 'called': return 'bg-blue-100 text-blue-800';
-      case 'in_service': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'transferred': return 'bg-purple-100 text-purple-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  getStatusLabel(status: string): string {
-    switch (status) {
-      case 'waiting': return 'En espera';
-      case 'called': return 'Llamado';
-      case 'in_service': return 'En atención';
-      case 'completed': return 'Completado';
-      case 'cancelled': return 'Cancelado';
-      case 'transferred': return 'Transferido';
-      default: return status;
-    }
-  }
-
-  formatTime(dateStr: string | null): string {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleTimeString('es-ES', { hour12: false });
+  playSound(): void {
+    this.soundTrigger.update(t => t + 1);
   }
 }

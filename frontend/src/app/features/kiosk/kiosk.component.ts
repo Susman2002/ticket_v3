@@ -1,46 +1,56 @@
 import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TicketService } from '../../core/services/ticket.service';
 import { Service, Ticket } from '../../core/models/ticket.model';
+import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/components';
 
 @Component({
   selector: 'app-kiosk',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule, AlertSoundComponent, StatusBadgeComponent],
   template: `
-    <div class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div class="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+    <div class="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-12">
+      <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         @if (!validated) {
           <!-- Validating QR -->
-          <div class="text-center py-8">
-            <svg class="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="text-gray-600">Validando código QR...</p>
+          <div class="text-center py-12">
+            <div class="inline-block relative">
+              <div class="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            </div>
+            <p class="text-gray-600 mt-4 text-lg">Validando código QR...</p>
           </div>
         } @else if (!qrValid) {
           <!-- Invalid QR -->
-          <div class="text-center py-8">
-            <svg class="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            <h2 class="text-xl font-semibold text-gray-900 mb-2">Acceso no válido</h2>
-            <p class="text-gray-600 mb-6">Debe escanear el código QR proyectado en la sala de atención.</p>
+          <div class="text-center py-12">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-3">Acceso no válido</h2>
+            <p class="text-gray-600 mb-8 max-w-xs mx-auto">
+              Debe escanear el código QR proyectado en la sala de atención.
+            </p>
             <button
               (click)="retry()"
-              class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              class="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Reintentar
             </button>
           </div>
         } @else if (!ticket) {
           <!-- Service Selection -->
-          <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold text-gray-900">Tomar Turno</h1>
-            <p class="text-gray-600 mt-1">Seleccione el trámite que desea realizar</p>
+          <div class="text-center mb-10">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+              </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900">Tomar Turno</h1>
+            <p class="text-gray-600 mt-2">Seleccione el trámite que desea realizar</p>
           </div>
 
           <div class="space-y-3" role="list">
@@ -49,13 +59,20 @@ import { Service, Ticket } from '../../core/models/ticket.model';
                 type="button"
                 (click)="selectService(service)"
                 [disabled]="loading"
-                class="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                class="w-full text-left p-5 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition-all duration-200 disabled:opacity-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 role="listitem"
               >
                 <div class="flex items-center justify-between">
-                  <div>
-                    <p class="font-medium text-gray-900">{{ service.name }}</p>
-                    <p class="text-sm text-gray-500">{{ service.prefix }} - Trámite {{ service.prefix.replace('TR', '') }}</p>
+                  <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                      </svg>
+                    </div>
+                    <div class="text-left">
+                      <p class="font-semibold text-gray-900 text-lg">{{ service.name }}</p>
+                      <p class="text-sm text-gray-500">{{ service.prefix }} - Trámite {{ service.prefix.replace('TR', '') }}</p>
+                    </div>
                   </div>
                   <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -66,45 +83,66 @@ import { Service, Ticket } from '../../core/models/ticket.model';
           </div>
 
           @if (services().length === 0) {
-            <div class="text-center py-8 text-gray-500">
-              <p>No hay trámites disponibles en este momento</p>
+            <div class="text-center py-12 text-gray-500">
+              <p class="text-lg">No hay trámites disponibles en este momento</p>
+              <p class="text-sm">Intente más tarde o contacte al personal</p>
             </div>
           }
         } @else {
-          <!-- Ticket Issued -->
-          <div class="text-center">
-            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">¡Turno emitido!</h2>
-            <p class="text-gray-600 mb-6">Su número de turno es:</p>
-            
-            <div class="bg-gray-900 text-white rounded-xl p-8 mb-6">
-              <p class="text-sm text-gray-400 mb-1">NÚMERO DE TURNO</p>
-              <p class="text-5xl font-bold font-mono tracking-wider">{{ ticket()?.display_number }}</p>
-              <p class="text-sm text-gray-400 mt-2">{{ ticket()?.service_name }}</p>
-            </div>
+          <!-- Ticket Issued - Success Screen -->
+          @if (ticket()) {
+            <div class="text-center animate-fade-in">
+              <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
+                <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <h2 class="text-3xl font-bold text-gray-900 mb-3">¡Turno emitido!</h2>
+              <p class="text-gray-600 mb-8">Su número de turno es:</p>
+              
+              <div class="bg-gray-900 text-white rounded-2xl p-10 mb-8 shadow-lg">
+                <p class="text-sm text-gray-400 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
+                <p class="text-7xl font-bold font-mono tracking-widest">{{ ticket()!.display_number }}</p>
+                <p class="text-lg text-gray-300 mt-4">{{ ticket()!.service_name }}</p>
+              </div>
 
-            <div class="bg-gray-50 rounded-lg p-4 mb-6 text-left">
-              <p class="text-sm text-gray-600 mb-1">Código de seguimiento:</p>
-              <p class="font-mono text-sm text-gray-900 break-all">{{ ticket()?.token }}</p>
-              <p class="text-xs text-gray-500 mt-2">Guarde este código para consultar su estado en <a href="#" class="text-blue-600 hover:underline">seguimiento</a></p>
-            </div>
+              <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left border border-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                  <p class="text-sm text-gray-600">Código de seguimiento</p>
+                  <button
+                    (click)="copyTrackingCode()"
+                    class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                  >
+                    Copiar
+                  </button>
+                </div>
+                <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticket()!.token }}</p>
+                <p class="text-xs text-gray-500 mt-3">Guarde este código para consultar su estado en <a routerLink="/ticket/{{ ticket()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
+              </div>
 
-            <button
-              (click)="newTicket()"
-              class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              Sacar otro turno
-            </button>
-          </div>
+              <button
+                (click)="newTicket()"
+                class="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Sacar otro turno
+              </button>
+            </div>
+          }
         }
       </div>
+
+      <app-alert-sound [trigger]="soundTrigger()"></app-alert-sound>
     </div>
   `,
-  styles: []
+  styles: [`
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.5s ease-out;
+    }
+  `]
 })
 export class KioskComponent implements OnInit {
   private route = inject(ActivatedRoute);
@@ -118,6 +156,7 @@ export class KioskComponent implements OnInit {
   ticket = signal<Ticket | null>(null);
   selectedServiceId: number | null = null;
   qrToken = '';
+  soundTrigger = signal(0);
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -161,6 +200,7 @@ export class KioskComponent implements OnInit {
       next: (ticket) => {
         this.ticket.set(ticket);
         this.loading = false;
+        this.playSound();
       },
       error: (err) => {
         this.loading = false;
@@ -178,5 +218,17 @@ export class KioskComponent implements OnInit {
     this.validated = false;
     this.qrValid = false;
     this.validateQR();
+  }
+
+  copyTrackingCode(): void {
+    if (this.ticket()) {
+      navigator.clipboard.writeText(this.ticket()!.token).then(() => {
+        // Could show a toast here
+      });
+    }
+  }
+
+  playSound(): void {
+    this.soundTrigger.update(t => t + 1);
   }
 }

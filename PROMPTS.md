@@ -73,9 +73,9 @@ Backend mínimo para el sistema de turnos con:
 
 ---
 
-## Fase 4: Base del Frontend Angular con Tailwind, Configuración API/WebSocket, Login y Guards (EN CURSO)
+## Fase 4: Base del Frontend Angular con Tailwind, Configuración API/WebSocket, Login y Guards (COMPLETADA)
 
-### Qué se está implementando
+### Qué se implementó
 1. **Proyecto Angular Standalone**
    - Angular 18+ con standalone components
    - Tailwind CSS configurado
@@ -83,7 +83,6 @@ Backend mínimo para el sistema de turnos con:
 
 2. **Configuración de entorno**
    - `environment.ts` / `environment.prod.ts` con `apiUrl`, `wsUrl`, `publicFrontendUrl`
-   - Proxy config para desarrollo local
 
 3. **Servicios Angular**
    - `ApiService` - HTTP client con interceptors para JWT
@@ -115,44 +114,65 @@ Backend mínimo para el sistema de turnos con:
    - Layout con header/navigation según rol
    - Componentes compartidos: QR display, ticket card, queue list, loading, error
 
-### Por qué esta implementación
-- Angular standalone + Tailwind = ligero, moderno, sin módulos NgModule
-- Servicios tipados con signals/reactive para estado reactivo
-- Guards funcionales (Angular 15+) para protección de rutas
-- WebSocket service con reconexión automática y sincronización con API al reconectar
-- Configuración por entornos para desarrollo (localhost) y producción (Vercel + Render)
+---
 
-### Archivos a crear en /frontend
-- `package.json` - Angular, Tailwind, rxjs, zone.js
-- `angular.json` - Configuración proyecto standalone
-- `tailwind.config.js` - Configuración Tailwind
-- `src/main.ts` - Bootstrap aplicación
-- `src/app/app.routes.ts` - Rutas con lazy loading y guards
-- `src/app/app.config.ts` - Providers (HttpClient, guards, interceptors)
-- `src/environments/environment.ts` - Config desarrollo
-- `src/environments/environment.prod.ts` - Config producción
-- `src/app/core/services/` - api, auth, websocket, ticket, operator, admin
-- `src/app/core/guards/` - auth, role, login guards
-- `src/app/core/interceptors/` - auth interceptor
-- `src/app/features/` - login, display, kiosk, ticket, operator, admin
-- `src/app/shared/components/` - Componentes reutilizables
+## Fase 5: Display, Kiosco, Seguimiento ciudadano (UI completa) (EN CURSO)
+
+### Qué se está implementando
+Mejorar y completar la UI de los componentes públicos ya existentes, enfocándose en:
+
+1. **Display (`/display`) - Pantalla pública de sala**
+   - QR grande centrado con animación suave al rotar
+   - Timer circular visual (90s) con progreso
+   - Lista de últimos 10 turnos llamados con ventanilla
+   - Animaciones de entrada/salida para tickets llamados
+   - Sonido de alerta cuando hay nuevo llamado
+   - Auto-reconexión WebSocket robusta
+   - Responsive: funciona en TV horizontal y monitor vertical
+
+2. **Kiosco (`/kiosk/:token`) - Autoservicio**
+   - Validación visual clara del QR (verde/rojo)
+   - Grid de servicios con iconos, nombres y prefijos
+   - Confirmación visual al emitir ticket (animación + número grande)
+   - Código de seguimiento copiable
+   - Botón "Otro turno" que reinicia selección
+   - Manejo de errores: QR expirado, servicio inactivo
+   - Accesibilidad: navegación por teclado, lectores de pantalla
+
+3. **Seguimiento ciudadano (`/ticket/:token`) - Mi turno**
+   - Estado visual claro: esperando/llamado/en atención/completado/cancelado/transferido
+   - Posición en cola en tiempo real (cuenta regresiva)
+   - Ventanilla destacada cuando es llamado/transferido
+   - Sonido de alerta al cambiar a "called"
+   - Historial de timestamps (creado, llamado, iniciado, completado)
+   - Código de seguimiento para compartir
+   - Auto-refresh vía WebSocket + fallback polling
+   - Pantalla de "turno no encontrado" amigable
+
+### Por qué esta implementación
+- Los componentes base ya existen (Fase 4), ahora se pulen la UX/UI
+- Prioridad: experiencia ciudadana fluida, accesible y sin fricciones
+- WebSocket para tiempo real + fallback robusto
+- Tailwind para estilos consistentes y responsive
+
+### Archivos a modificar en /frontend
+- `src/app/features/display/display.component.ts` + template
+- `src/app/features/kiosk/kiosk.component.ts` + template
+- `src/app/features/ticket/ticket.component.ts` + template
+- `src/app/shared/components/` - Nuevos componentes reutilizables (QRDisplay, TimerCircular, TicketCard, StatusBadge, AlertSound)
 
 ### Pruebas manuales esperadas al terminar
-1. `ng serve` levanta frontend en `http://localhost:4200`
-2. `/login` - Login admin/operador funcional, redirige según rol
-3. `/display` - Muestra QR actual, cuenta regresiva 90s, últimos llamados, actualiza por WS
-4. `/kiosk/:token` - Valida QR token, permite seleccionar servicio, emite ticket
-5. `/ticket/:token` - Muestra estado, posición, ventanilla, sonido al called
-6. `/operator` - Login operador, iniciar sesión (ventanilla + servicio), ver cola, llamar siguiente
-7. `/operator/panel` - Ticket actual: iniciar, completar, cancelar, transferir
-8. `/admin/*` - Solo admin: CRUD usuarios, servicios, ventanillas
-9. Guards: acceso denegado sin login, redirección correcta según rol
-10. WebSocket: reconexión automática, eventos llegan a componentes
+1. `/display` - QR se actualiza solo cada 90s, timer circular, últimos 10 llamados con animación, sonido al nuevo llamado
+2. `/kiosk/<token_valido>` - Valida QR, muestra servicios, emite ticket con animación, muestra código copiable
+3. `/kiosk/<token_invalido>` - Muestra error claro "Acceso no válido..."
+3. `/ticket/<token>` - Estado, posición, ventanilla, sonido al called, timestamps, código copiable
+4. WebSocket: reconexión automática tras cortes, eventos llegan sin duplicados
+5. Responsive: probar en móvil, tablet, desktop, TV
+6. Accesibilidad: Tab navigation, screen reader labels, contraste
 
 ---
 
 ## Próximas fases (pendientes)
-- Fase 5: Display, Kiosco, Seguimiento ciudadano (UI completa)
 - Fase 6: Paneles de operador (UI completa)
 - Fase 7: Panel administrativo (UI completa)
 - Fase 8: Revisión manual, build, lint, preparación Render/Vercel
