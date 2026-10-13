@@ -315,6 +315,9 @@ export class OperatorComponent implements OnInit, OnDestroy {
         this.currentSession.set(session);
         this.loading = false;
         this.loadWaitingTickets(session.service_id);
+        // Reset form
+        this.selectedWindowId = null;
+        this.selectedServiceId = null;
       },
       error: (err) => {
         this.error = err.error?.error || 'Error al iniciar sesión';
