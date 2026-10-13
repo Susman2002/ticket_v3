@@ -96,7 +96,7 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
           </div>
 
         <!-- State 4: Ticket Issued -->
-        <div *ngIf="ticketValue" class="text-center animate-fade-in">
+        <div *ngIf="ticketValue()" class="text-center animate-fade-in">
           <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
             <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -107,8 +107,8 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
           
           <div class="bg-gray-900 text-white rounded-2xl p-10 mb-8 shadow-lg">
             <p class="text-sm text-gray-400 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
-            <p class="text-7xl font-bold font-mono tracking-widest">{{ ticketValue.display_number }}</p>
-            <p class="text-lg text-gray-300 mt-4">{{ ticketValue.service_name }}</p>
+            <p class="text-7xl font-bold font-mono tracking-widest">{{ ticketValue()!.display_number }}</p>
+            <p class="text-lg text-gray-300 mt-4">{{ ticketValue()!.service_name }}</p>
           </div>
 
           <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left border border-gray-200">
@@ -118,8 +118,8 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
                 Copiar
               </button>
             </div>
-            <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue.token }}</p>
-            <p class="text-xs text-gray-500 mt-3">Guarde este código para consultar su estado en <a routerLink="/ticket/{{ ticketValue.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
+            <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue()!.token }}</p>
+            <p class="text-xs text-gray-500 mt-3">Guarde este código para consultar su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
           </div>
 
           <button (click)="newTicket()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -157,18 +157,11 @@ export class KioskComponent implements OnInit {
   qrToken = '';
   soundTrigger = signal(0);
 
-  get ticket(): Ticket | null {
-    return this._ticket();
-  }
-
-  set ticket(value: Ticket | null) {
-    this._ticket.set(value);
-  }
-
-  // Expose ticket as a regular property for template binding
-  get ticketValue(): Ticket | null {
-    return this._ticket();
-  }
+  // Expose ticket signal as readonly for template binding
+  public readonly ticket = this._ticket.asReadonly();
+  
+  // Computed for template usage to ensure proper typing
+  public readonly ticketValue = computed(() => this._ticket());
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -219,7 +212,7 @@ export class KioskComponent implements OnInit {
 
     this.ticketService.createTicket({ service_id: service.id, qr_token: this.qrToken }).subscribe({
       next: (ticket) => {
-        this.ticket = ticket;
+        this._ticket.set(ticket);
         this.loading = false;
         this.playSound();
       },
@@ -231,7 +224,7 @@ export class KioskComponent implements OnInit {
   }
 
   newTicket(): void {
-    this.ticket = null;
+    this._ticket.set(null);
     this.selectedServiceId = null;
   }
 
@@ -242,8 +235,8 @@ export class KioskComponent implements OnInit {
   }
 
   copyTrackingCode(): void {
-    if (this.ticket) {
-      navigator.clipboard.writeText(this.ticket!.token).then(() => {
+    if (this._ticket()) {
+      navigator.clipboard.writeText(this._ticket()!.token).then(() => {
         // Could show a toast here
       });
     }
