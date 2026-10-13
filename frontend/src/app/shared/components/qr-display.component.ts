@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { QRCodeModule } from 'angularx-qrcode';
 
@@ -8,11 +8,14 @@ import { QRCodeModule } from 'angularx-qrcode';
   imports: [CommonModule, QRCodeModule],
   template: `
     <div class="bg-white rounded-lg p-4 inline-block" [class.animate-pulse]="rotating()">
+      <!-- Force re-render by using a key that changes with qrData -->
       <qrcode
+        [attr.data-qr-key]="qrKey()"
         [qrdata]="qrData()"
         [width]="size()"
         [errorCorrectionLevel]="'M'"
-        [cssClass]="'qr-code'">
+        [cssClass]="'qr-code'"
+        [elementType]="'canvas'">
       </qrcode>
     </div>
   `,
@@ -35,4 +38,14 @@ export class QRDisplayComponent {
   qrData = input.required<string>();
   size = input<number>(256);
   rotating = input<boolean>(false);
+
+  // Generate a key that changes when qrData changes to force re-render
+  qrKey = signal(0);
+
+  constructor() {
+    effect(() => {
+      this.qrData(); // Track qrData changes
+      this.qrKey.update(k => k + 1); // Increment key to force re-render
+    });
+  }
 }
