@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 
 type ButtonVariant = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'secondary';
 type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonType = 'button' | 'submit' | 'reset';
 
 @Component({
   selector: 'app-action-button',
@@ -10,7 +11,7 @@ type ButtonSize = 'sm' | 'md' | 'lg';
   imports: [CommonModule],
   template: `
     <button
-      type="button"
+      [type]="type()"
       (click)="onClick.emit($event)"
       [disabled]="disabled() || loading()"
       [class]="buttonClasses()"
@@ -41,6 +42,7 @@ export class ActionButtonComponent {
   ariaLabel = input<string>('');
   confirm = input<boolean>(false);
   confirmMessage = input<string>('¿Está seguro?');
+  type = input<ButtonType>('button');
 
   onClick = output<MouseEvent>();
 
