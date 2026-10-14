@@ -13,6 +13,7 @@ export class WebSocketService {
 
   // Subjects para cada evento
   private qrRotated$ = new Subject<WSEvent<any>>();
+  private connected$ = new Subject<void>();
   private ticketCreated$ = new Subject<WSEvent<any>>();
   private ticketCalled$ = new Subject<WSEvent<any>>();
   private ticketUpdated$ = new Subject<WSEvent<any>>();
@@ -22,6 +23,7 @@ export class WebSocketService {
 
   // Observables públicos
   onQRRotated = this.qrRotated$.asObservable();
+  onConnected = this.connected$.asObservable();
   onTicketCreated = this.ticketCreated$.asObservable();
   onTicketCalled = this.ticketCalled$.asObservable();
   onTicketUpdated = this.ticketUpdated$.asObservable();
@@ -30,7 +32,7 @@ export class WebSocketService {
   onOperatorSessionEnded = this.operatorSessionEnded$.asObservable();
 
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
 
     this.shouldReconnect = true;
     this.ws = new WebSocket(environment.wsUrl);
@@ -38,6 +40,7 @@ export class WebSocketService {
     this.ws.onopen = () => {
       console.log('WebSocket conectado');
       this.reconnectAttempts = 0;
+      this.connected$.next();
     };
 
     this.ws.onmessage = (event) => {

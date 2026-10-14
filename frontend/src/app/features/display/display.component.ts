@@ -98,7 +98,9 @@ export class DisplayComponent implements OnInit, OnDestroy {
   qrRotating = signal(false);
   ticketJustCalled = signal(false);
   soundTrigger = signal(0);
-  private timerInterval: any;
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
+  private clockInterval: ReturnType<typeof setInterval> | null = null;
+  private qrRefreshInProgress = false;
 
   qrUrl = computed(() => {
     if (!this.qrData()) return '';
@@ -109,15 +111,17 @@ export class DisplayComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadInitialData();
     this.setupWebSocket();
+    this.ws.connect();
     this.startTimer();
     this.updateClock();
-    setInterval(() => this.updateClock(), 1000);
+    this.clockInterval = setInterval(() => this.updateClock(), 1000);
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
     if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.clockInterval) clearInterval(this.clockInterval);
   }
 
   loadInitialData(): void {
@@ -139,6 +143,13 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.qrRotating.set(true);
       setTimeout(() => this.qrRotating.set(false), 500);
       this.playSound();
+    });
+
+    this.ws.onConnected.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.ticketService.getQRCurrent().subscribe(data => {
+        this.qrData.set(data);
+        this.qrTimer.set(data.remainingSeconds);
+      });
     });
 
     this.ws.onTicketCalled.pipe(takeUntil(this.destroy$)).subscribe(event => {
@@ -164,7 +175,25 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   startTimer(): void {
     this.timerInterval = setInterval(() => {
-      this.qrTimer.update(t => Math.max(0, t - 1));
+      this.qrTimer.update(t => {
+        if (t <= 1) {
+          if (!this.qrRefreshInProgress) {
+            this.qrRefreshInProgress = true;
+            this.ticketService.getQRCurrent().subscribe({
+              next: data => {
+                this.qrData.set(data);
+                this.qrTimer.set(data.remainingSeconds);
+                this.qrRefreshInProgress = false;
+              },
+              error: () => {
+                this.qrRefreshInProgress = false;
+              }
+            });
+          }
+          return 0;
+        }
+        return t - 1;
+      });
     }, 1000);
   }
 

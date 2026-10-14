@@ -6,6 +6,7 @@ export interface WSEvent<T = any> {
 export interface QRRotatedData {
   token: string;
   remainingSeconds: number;
+  expiresAt: number;
 }
 
 export interface TicketCreatedData {

@@ -7,6 +7,28 @@ import { TicketService } from '../../core/services/ticket.service';
 import { Service, Ticket } from '../../core/models/ticket.model';
 import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/components';
 
+const ACTIVE_STATUSES: Ticket['status'][] = ['waiting', 'called', 'in_service', 'transferred'];
+const TERMINAL_STATUSES: Ticket['status'][] = ['completed', 'cancelled'];
+
+function getStorageKey(qrToken: string): string {
+  return `kiosk_ticket_${qrToken}`;
+}
+
+function getStoredTicketToken(qrToken: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(getStorageKey(qrToken));
+}
+
+function storeTicketToken(qrToken: string, ticketToken: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getStorageKey(qrToken), ticketToken);
+}
+
+function clearStoredTicketToken(qrToken: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(getStorageKey(qrToken));
+}
+
 @Component({
   selector: 'app-kiosk',
   standalone: true,
@@ -36,8 +58,14 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
           </button>
         </div>
 
+        <!-- State: Checking for existing ticket -->
+        <div *ngIf="validated && qrValid && checkingStoredTicket()" class="text-center py-12">
+          <div class="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p class="text-gray-600 mt-4 text-lg">Verificando su turno...</p>
+        </div>
+
         <!-- State 3: Service Selection -->
-        <div *ngIf="validated && qrValid && !ticket">
+        <div *ngIf="validated && qrValid && canRequestNewTicket() && !checkingStoredTicket() && !ticketValue()">
           <div class="text-center mb-10">
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,16 +122,17 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
               <p class="text-sm">Intente más tarde o contacte al personal</p>
             </div>
           </div>
+        </div>
 
-        <!-- State 4: Ticket Issued -->
-        <div *ngIf="ticketValue()" class="text-center animate-fade-in">
-          <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
-            <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        <!-- State 4: Ticket Active (waiting, called, in_service, transferred) -->
+        <div *ngIf="ticketValue() && !canRequestNewTicket()" class="text-center animate-fade-in">
+          <div class="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-8">
+            <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
           </div>
-          <h2 class="text-3xl font-bold text-gray-900 mb-3">¡Turno emitido!</h2>
-          <p class="text-gray-600 mb-8">Su número de turno es:</p>
+          <h2 class="text-3xl font-bold text-gray-900 mb-3">Su turno está en proceso</h2>
+          <p class="text-gray-600 mb-8">Número de turno:</p>
           
           <div class="bg-gray-900 text-white rounded-2xl p-10 mb-8 shadow-lg">
             <p class="text-sm text-gray-400 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
@@ -119,7 +148,50 @@ import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/componen
               </button>
             </div>
             <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue()!.token }}</p>
-            <p class="text-xs text-gray-500 mt-3">Guarde este código para consultar su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
+            <p class="text-xs text-gray-500 mt-3">Consulte su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
+            
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p class="text-sm text-blue-800 font-medium">
+                <strong>Estado actual:</strong> 
+                <app-status-badge [status]="ticketValue()!.status"></app-status-badge>
+              </p>
+              <p class="text-xs text-blue-700 mt-2">No puede solicitar otro turno hasta que este se complete o cancele.</p>
+            </div>
+          </div>
+
+          <button (click)="newTicket()" 
+                  [disabled]="!canRequestNewTicket()"
+                  class="w-full py-4 bg-gray-300 text-gray-500 rounded-xl font-semibold text-lg cursor-not-allowed">
+            Sacar otro turno
+          </button>
+        </div>
+
+        <!-- State 5: Ticket Completed/Cancelled - Allow new ticket -->
+        <div *ngIf="ticketValue() && canRequestNewTicket()" class="text-center animate-fade-in">
+          <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
+            <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+          <h2 class="text-3xl font-bold text-gray-900 mb-3">Turno finalizado</h2>
+          <p class="text-gray-600 mb-8">Su turno anterior:</p>
+          
+          <div class="bg-gray-100 text-gray-900 rounded-2xl p-10 mb-8 shadow-lg">
+            <p class="text-sm text-gray-500 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
+            <p class="text-7xl font-bold font-mono tracking-widest">{{ ticketValue()!.display_number }}</p>
+            <p class="text-lg text-gray-600 mt-4">{{ ticketValue()!.service_name }}</p>
+            <app-status-badge [status]="ticketValue()!.status" class="mt-4 inline-block"></app-status-badge>
+          </div>
+
+          <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left border border-gray-200">
+            <div class="flex items-center justify-between mb-4">
+              <p class="text-sm text-gray-600">Código de seguimiento</p>
+              <button (click)="copyTrackingCode()" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
+                Copiar
+              </button>
+            </div>
+            <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue()!.token }}</p>
+            <p class="text-xs text-gray-500 mt-3">Consulte su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
           </div>
 
           <button (click)="newTicket()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -156,6 +228,8 @@ export class KioskComponent implements OnInit {
   selectedServiceId: number | null = null;
   qrToken = '';
   soundTrigger = signal(0);
+  checkingStoredTicket = signal(false);
+  canRequestNewTicket = signal(false);
 
   // Expose ticket signal as readonly for template binding
   public readonly ticket = this._ticket.asReadonly();
@@ -171,6 +245,39 @@ export class KioskComponent implements OnInit {
     this.loadServices();
   }
 
+  private checkStoredTicket(): void {
+    if (!this.qrToken) return;
+    
+    const storedToken = getStoredTicketToken(this.qrToken);
+    if (!storedToken) {
+      this.canRequestNewTicket.set(true);
+      return;
+    }
+
+    this.checkingStoredTicket.set(true);
+    this.ticketService.getTicket(storedToken).subscribe({
+      next: (ticket) => {
+        this._ticket.set(ticket);
+        this.checkingStoredTicket.set(false);
+        
+        if (TERMINAL_STATUSES.includes(ticket.status)) {
+          // Ticket completed/cancelled, allow new ticket and clear storage
+          clearStoredTicketToken(this.qrToken);
+          this.canRequestNewTicket.set(true);
+        } else {
+          // Active ticket, show it and prevent new ticket
+          this.canRequestNewTicket.set(false);
+        }
+      },
+      error: () => {
+        // Ticket not found or error, clear storage and allow new ticket
+        clearStoredTicketToken(this.qrToken);
+        this.checkingStoredTicket.set(false);
+        this.canRequestNewTicket.set(true);
+      }
+    });
+  }
+
   validateQR(): void {
     if (!this.qrToken) {
       this.validated = true;
@@ -182,6 +289,9 @@ export class KioskComponent implements OnInit {
       next: (res) => {
         this.validated = true;
         this.qrValid = res.valid;
+        if (res.valid) {
+          this.checkStoredTicket();
+        }
       },
       error: () => {
         this.validated = true;
@@ -207,13 +317,17 @@ export class KioskComponent implements OnInit {
   }
 
   selectService(service: Service): void {
+    if (!this.canRequestNewTicket()) return;
+    
     this.selectedServiceId = service.id;
     this.loading = true;
 
     this.ticketService.createTicket({ service_id: service.id, qr_token: this.qrToken }).subscribe({
       next: (ticket) => {
         this._ticket.set(ticket);
+        storeTicketToken(this.qrToken, ticket.token);
         this.loading = false;
+        this.canRequestNewTicket.set(false);
         this.playSound();
       },
       error: (err) => {
@@ -224,8 +338,11 @@ export class KioskComponent implements OnInit {
   }
 
   newTicket(): void {
+    if (!this.canRequestNewTicket()) return;
+    
     this._ticket.set(null);
     this.selectedServiceId = null;
+    clearStoredTicketToken(this.qrToken);
   }
 
   retry(): void {

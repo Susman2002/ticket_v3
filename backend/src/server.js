@@ -56,7 +56,7 @@ let lastToken = null;
 setInterval(() => {
   const current = getCurrent();
   if (current.token !== lastToken) {
-    broadcast('QR_ROTATED', { token: current.token, remainingSeconds: current.remainingSeconds });
+    broadcast('QR_ROTATED', current);
     lastToken = current.token;
   }
 }, 1000);
