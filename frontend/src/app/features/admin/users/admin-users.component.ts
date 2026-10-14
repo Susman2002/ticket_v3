@@ -3,14 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService } from '../../../core/services/admin.service';
 import { AuthService } from '../../../core/services/auth.service';
-
-interface User {
-  id: number;
-  username: string;
-  role: 'admin' | 'operator';
-  active: boolean;
-  created_at: string;
-}
+import { User, Role } from '../../../core/models/auth.model';
 
 @Component({
   selector: 'app-admin-users',
@@ -62,8 +55,8 @@ interface User {
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 py-1 text-xs font-medium rounded-full" [class.bg-blue-100]="user.role === 'admin'" [class.text-blue-800]="user.role === 'admin'" [class.bg-green-100]="user.role === 'operator'" [class.text-green-800]="user.role === 'operator'">
-                      {{ user.role === 'admin' ? 'Administrador' : 'Operador' }}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                      {{ getRoleName(user.role_id ?? 0) }}
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
@@ -72,9 +65,15 @@ interface User {
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ formatDate(user.created_at) }}
+                    {{ formatDate(user.created_at ?? '') }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      (click)="openEditModal(user)"
+                      class="text-gray-600 hover:text-gray-900 mr-4"
+                    >
+                      Editar
+                    </button>
                     <button
                       (click)="toggleUser(user)"
                       [disabled]="user.id === auth.user()?.id"
@@ -135,13 +134,14 @@ interface User {
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
               <select
-                [(ngModel)]="formData.role"
-                name="role"
+                [(ngModel)]="formData.role_id"
+                name="role_id"
                 required
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
-                <option value="operator">Operador</option>
-                <option value="admin">Administrador</option>
+                @for (role of roles(); track role.id) {
+                  <option [value]="role.id">{{ role.name }}</option>
+                }
               </select>
             </div>
             <div class="flex justify-end gap-3 pt-4">
@@ -179,27 +179,48 @@ export class AdminUsersComponent implements OnInit {
   auth = inject(AuthService);
 
   users = signal<User[]>([]);
+  roles = signal<Role[]>([]);
   loading = true;
   showModal = signal(false);
   editingUser = signal<User | null>(null);
-  formData = { username: '', password: '', role: 'operator' as 'admin' | 'operator' };
+  formData = { username: '', password: '', role_id: 2 };
   saving = false;
 
   ngOnInit(): void {
     this.loadUsers();
+    this.loadRoles();
   }
 
   loadUsers(): void {
     this.loading = true;
-    // We need to use the admin service - but it doesn't have getUsers yet
-    // For now, we'll mock or add the endpoint
-    this.loading = false;
-    this.users.set([]);
+    this.adminService.getUsers().subscribe({
+      next: (users) => {
+        this.users.set(users);
+        this.loading = false;
+      },
+      error: () => {
+        this.users.set([]);
+        this.loading = false;
+      }
+    });
+  }
+
+  loadRoles(): void {
+    this.adminService.getRoles().subscribe({
+      next: (roles) => this.roles.set(roles),
+      error: () => this.roles.set([])
+    });
   }
 
   openCreateModal(): void {
     this.editingUser.set(null);
-    this.formData = { username: '', password: '', role: 'operator' };
+    this.formData = { username: '', password: '', role_id: 2 };
+    this.showModal.set(true);
+  }
+
+  openEditModal(user: User): void {
+    this.editingUser.set(user);
+    this.formData = { username: user.username, password: '', role_id: user.role_id ?? 2 };
     this.showModal.set(true);
   }
 
@@ -210,22 +231,81 @@ export class AdminUsersComponent implements OnInit {
 
   saveUser(): void {
     this.saving = true;
-    // TODO: Implement create/update user
-    this.saving = false;
-    this.closeModal();
-    this.loadUsers();
+
+    if (this.editingUser()) {
+      const request = {
+        username: this.formData.username,
+        role_id: this.formData.role_id,
+        active: this.editingUser()!.active
+      };
+      this.adminService.updateUser(this.editingUser()!.id, request).subscribe({
+        next: () => {
+          if (this.formData.password) {
+            this.adminService.updateUserPassword(this.editingUser()!.id, this.formData.password).subscribe({
+              next: () => {
+                this.saving = false;
+                this.closeModal();
+                this.loadUsers();
+              },
+              error: (err) => {
+                this.saving = false;
+                alert(err.error?.error || 'Error al actualizar contraseña');
+              }
+            });
+          } else {
+            this.saving = false;
+            this.closeModal();
+            this.loadUsers();
+          }
+        },
+        error: (err) => {
+          this.saving = false;
+          alert(err.error?.error || 'Error al actualizar');
+        }
+      });
+    } else {
+      const request = {
+        username: this.formData.username,
+        password: this.formData.password,
+        role_id: this.formData.role_id
+      };
+      this.adminService.createUser(request).subscribe({
+        next: () => {
+          this.saving = false;
+          this.closeModal();
+          this.loadUsers();
+        },
+        error: (err) => {
+          this.saving = false;
+          alert(err.error?.error || 'Error al crear');
+        }
+      });
+    }
   }
 
   toggleUser(user: User): void {
-    // TODO: Implement toggle
+    if (user.id === this.auth.user()?.id) return;
+    this.adminService.updateUser(user.id, { active: !user.active }).subscribe({
+      next: () => this.loadUsers(),
+      error: (err) => alert(err.error?.error || 'Error al cambiar estado')
+    });
   }
 
   deleteUser(user: User): void {
+    if (user.id === this.auth.user()?.id) return;
     if (!confirm(`¿Eliminar operador ${user.username}?`)) return;
-    // TODO: Implement delete
+    this.adminService.deleteUser(user.id).subscribe({
+      next: () => this.loadUsers(),
+      error: (err) => alert(err.error?.error || 'Error al eliminar')
+    });
   }
 
   formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('es-ES');
+  }
+
+  getRoleName(roleId: number): string {
+    const role = this.roles().find(r => r.id === roleId);
+    return role ? role.name : 'Desconocido';
   }
 }

@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { Service, Window, CreateServiceRequest, UpdateServiceRequest, CreateWindowRequest, UpdateWindowRequest } from '../models/admin.model';
+import { Service, Window } from '../models/ticket.model';
+import { CreateServiceRequest, UpdateServiceRequest, CreateWindowRequest, UpdateWindowRequest, CreateUserRequest, UpdateUserRequest } from '../models/admin.model';
+import { User, Role } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -39,5 +41,30 @@ export class AdminService {
 
   deleteWindow(id: number): Observable<Window> {
     return this.api.delete<Window>(`/windows/${id}`);
+  }
+
+  // Usuarios
+  getUsers(): Observable<User[]> {
+    return this.api.get<User[]>('/users');
+  }
+
+  getRoles(): Observable<Role[]> {
+    return this.api.get<Role[]>('/users/roles');
+  }
+
+  createUser(request: CreateUserRequest): Observable<User> {
+    return this.api.post<User>('/users', request);
+  }
+
+  updateUser(id: number, request: UpdateUserRequest): Observable<User> {
+    return this.api.put<User>(`/users/${id}`, request);
+  }
+
+  updateUserPassword(id: number, password: string): Observable<User> {
+    return this.api.put<User>(`/users/${id}/password`, { password });
+  }
+
+  deleteUser(id: number): Observable<User> {
+    return this.api.delete<User>(`/users/${id}`);
   }
 }

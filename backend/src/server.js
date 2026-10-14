@@ -9,6 +9,7 @@ import { createTicket, getTicketByToken, getWaitingTickets, getCalledTickets, st
 import { authenticate, generateToken, authRequired, requireRole } from './auth.js';
 import { listServices, getServiceById, createService, updateService, deleteService } from './services.js';
 import { listWindows, getWindowById, createWindow, updateWindow, deleteWindow, isWindowAvailable } from './windows.js';
+import { listUsers, getUserById, createUser, updateUser, updateUserPassword, deleteUser, listRoles } from './users.js';
 import { startSession, endSession, getCurrentSession, getActiveSessions } from './operatorSessions.js';
 import { getWaitingTickets as getQueueWaiting, getQueueSummary, callNextTicket } from './queue.js';
 
@@ -184,6 +185,80 @@ app.delete('/api/windows/:id', authRequired, requireRole('admin'), async (req, r
     res.json(window);
   } catch (e) {
     console.error('Error eliminando ventanilla:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Usuarios (solo admin)
+app.get('/api/users', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const users = await listUsers();
+    res.json(users);
+  } catch (e) {
+    console.error('Error obteniendo usuarios:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.get('/api/users/roles', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const roles = await listRoles();
+    res.json(roles);
+  } catch (e) {
+    console.error('Error obteniendo roles:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/users', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { username, password, role_id } = req.body;
+    if (!username || !password || !role_id) {
+      return res.status(400).json({ error: 'username, password y role_id son requeridos' });
+    }
+    const user = await createUser(username, password, role_id);
+    res.status(201).json(user);
+  } catch (e) {
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'El usuario ya existe' });
+    }
+    console.error('Error creando usuario:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/users/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { username, role_id, active } = req.body;
+    const user = await updateUser(req.params.id, username, role_id, active);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(user);
+  } catch (e) {
+    console.error('Error actualizando usuario:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/users/:id/password', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'password es requerido' });
+    const user = await updateUserPassword(req.params.id, password);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(user);
+  } catch (e) {
+    console.error('Error actualizando contraseña:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/users/:id', authRequired, requireRole('admin'), async (req, res) => {
+  try {
+    const user = await deleteUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(user);
+  } catch (e) {
+    console.error('Error eliminando usuario:', e);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
