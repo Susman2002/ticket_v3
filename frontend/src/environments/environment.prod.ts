@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://tu-backend.onrender.com/api',
-  wsUrl: 'wss://tu-backend.onrender.com/ws',
-  publicFrontendUrl: 'https://tu-frontend.vercel.app'
+  apiUrl: 'https://<RENDER_APP_NAME>.onrender.com/api',
+  wsUrl: 'wss://<RENDER_APP_NAME>.onrender.com/ws',
+  publicFrontendUrl: 'https://<VERCEL_APP_NAME>.vercel.app'
 };
