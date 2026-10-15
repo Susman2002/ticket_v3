@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://<RENDER_APP_NAME>.onrender.com/api',
-  wsUrl: 'wss://<RENDER_APP_NAME>.onrender.com/ws',
-  publicFrontendUrl: 'https://<VERCEL_APP_NAME>.vercel.app'
+  apiUrl: 'https://ticket-backend-v1.onrender.com/api',
+  wsUrl: 'wss://ticket-backend-v1.onrender.com/ws',
+  publicFrontendUrl: 'https://ticket-v3.vercel.app'
 };
