@@ -40,6 +40,21 @@ import { StatusBadgeComponent, AlertSoundComponent } from '../../shared/componen
         } @else if (ticket()) {
           <!-- Ticket Info -->
           <div class="text-center">
+            @if (soundBlocked()) {
+              <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-center gap-3 text-left">
+                <svg class="w-6 h-6 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5 10v4a1 1 0 001 1h2l3 3V6L8 9H6a1 1 0 00-1 1z"></path>
+                </svg>
+                <p class="text-sm text-amber-800 flex-1">Su navegador bloqueó el sonido de alerta.</p>
+                <button
+                  (click)="enableSound()"
+                  class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors shrink-0"
+                >
+                  Activar sonido
+                </button>
+              </div>
+            }
+
             <!-- Status Badge -->
             <div class="mb-8">
               <app-status-badge [status]="ticket()!.status"></app-status-badge>
@@ -167,7 +182,7 @@ import { StatusBadgeComponent, AlertSoundComponent } from '../../shared/componen
         }
       </div>
 
-      <app-alert-sound [trigger]="soundTrigger()"></app-alert-sound>
+      <app-alert-sound [trigger]="soundTrigger()" (blocked)="soundBlocked.set(true)"></app-alert-sound>
     </div>
   `,
   styles: []
@@ -184,6 +199,7 @@ export class TicketComponent implements OnInit, OnDestroy {
   error = '';
   private token = '';
   soundTrigger = signal(0);
+  soundBlocked = signal(false);
 
   position = computed(() => {
     // In a real implementation, you'd fetch queue position
@@ -197,6 +213,7 @@ export class TicketComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.checkSoundPermission();
     this.route.paramMap.subscribe(params => {
       this.token = params.get('token') || '';
       if (this.token) {
@@ -260,6 +277,29 @@ export class TicketComponent implements OnInit, OnDestroy {
 
   playSound(): void {
     this.soundTrigger.update(t => t + 1);
+  }
+
+  enableSound(): void {
+    this.soundBlocked.set(false);
+    this.playSound();
+  }
+
+  private checkSoundPermission(): void {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) {
+        this.soundBlocked.set(true);
+        return;
+      }
+      const ctx = new Ctx();
+      const suspended = ctx.state === 'suspended';
+      ctx.close();
+      if (suspended) {
+        this.soundBlocked.set(true);
+      }
+    } catch {
+      this.soundBlocked.set(true);
+    }
   }
 
   copyTrackingCode(): void {
