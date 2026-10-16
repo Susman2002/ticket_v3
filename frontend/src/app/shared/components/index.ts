@@ -6,5 +6,6 @@ export { AlertSoundComponent } from './alert-sound.component';
 export { QueueCardComponent } from './queue-card.component';
 export { ActionButtonComponent } from './action-button.component';
 export { TransferModalComponent } from './transfer-modal.component';
+export type { WindowOption } from './transfer-modal.component';
 export { SessionStatusComponent } from './session-status.component';
 export { OperatorHeaderComponent } from './operator-header.component';

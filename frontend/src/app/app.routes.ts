@@ -26,8 +26,8 @@ export const appRoutes: Routes = [
   },
   {
     path: 'operator/panel',
-    canActivate: [authGuard, roleGuard(['operator', 'admin'])],
-    loadComponent: () => import('./features/operator/operator-panel.component').then(m => m.OperatorPanelComponent)
+    redirectTo: '/operator',
+    pathMatch: 'full'
   },
   {
     path: 'admin',
