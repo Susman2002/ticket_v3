@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { OperatorSession, StartSessionRequest, Ticket, TransferTicketRequest, TicketActionRequest } from '../models/operator.model';
+import { OperatorSession, ActiveSession, StartSessionRequest, Ticket, TransferTicketRequest, TicketActionRequest } from '../models/operator.model';
 
 @Injectable({ providedIn: 'root' })
 export class OperatorService {
@@ -17,6 +17,10 @@ export class OperatorService {
 
   getCurrentSession(): Observable<OperatorSession> {
     return this.api.get<OperatorSession>('/operator/session/current');
+  }
+
+  getActiveSessions(): Observable<ActiveSession[]> {
+    return this.api.get<ActiveSession[]>('/operator/sessions/active');
   }
 
   callNext(): Observable<Ticket> {

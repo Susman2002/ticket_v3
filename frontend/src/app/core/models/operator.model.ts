@@ -13,6 +13,10 @@ export interface OperatorSession {
   service_prefix?: string;
 }
 
+export interface ActiveSession extends OperatorSession {
+  username: string;
+}
+
 export interface StartSessionRequest {
   window_id: number;
   service_id: number;
