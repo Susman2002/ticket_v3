@@ -49,6 +49,19 @@ export async function callNextTicket(operatorSessionId) {
     const serviceId = session.service_id;
     const windowId = session.window_id;
 
+    // Verificar que no tenga un ticket activo (called/in_service)
+    const activeTicketResult = await client.query(
+      `SELECT id FROM tickets
+       WHERE operator_session_id = $1 AND status IN ('called', 'in_service')
+       LIMIT 1`,
+      [operatorSessionId]
+    );
+    if (activeTicketResult.rows.length > 0) {
+      const error = new Error('Debe completar, cancelar o transferir el turno actual antes de llamar al siguiente');
+      error.statusCode = 409;
+      throw error;
+    }
+
     // Buscar primer ticket waiting de ese servicio (FOR UPDATE para lock)
     const ticketResult = await client.query(
       `SELECT id, token, display_number

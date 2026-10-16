@@ -103,12 +103,12 @@ export async function startService(ticketId, operatorSessionId) {
       `SELECT t.*, os.user_id as operator_user_id
        FROM tickets t
        JOIN operator_sessions os ON t.operator_session_id = os.id
-       WHERE t.id = $1 AND t.status = 'called' AND t.operator_session_id = $2
+       WHERE t.id = $1 AND t.status IN ('called', 'transferred') AND t.operator_session_id = $2
        FOR UPDATE`,
       [ticketId, operatorSessionId]
     );
     if (ticketResult.rows.length === 0) {
-      const error = new Error('Ticket no encontrado, no está en estado "called" o no pertenece a esta sesión');
+      const error = new Error('Ticket no encontrado, no está en estado "called" o "transferred" o no pertenece a esta sesión');
       error.statusCode = 400;
       throw error;
     }
@@ -177,7 +177,7 @@ export async function cancelService(ticketId, operatorSessionId) {
     const ticketResult = await client.query(
       `SELECT t.*
        FROM tickets t
-       WHERE t.id = $1 AND t.status IN ('waiting', 'called', 'in_service') AND t.operator_session_id = $2
+       WHERE t.id = $1 AND t.status IN ('waiting', 'called', 'in_service', 'transferred') AND t.operator_session_id = $2
        FOR UPDATE`,
       [ticketId, operatorSessionId]
     );
@@ -216,7 +216,7 @@ export async function transferTicket(ticketId, operatorSessionId, targetWindowId
       `SELECT t.*, os.window_id as current_window_id, os.user_id as operator_user_id
        FROM tickets t
        JOIN operator_sessions os ON t.operator_session_id = os.id
-       WHERE t.id = $1 AND t.status IN ('called', 'in_service') AND t.operator_session_id = $2
+       WHERE t.id = $1 AND t.status IN ('called', 'in_service', 'transferred') AND t.operator_session_id = $2
        FOR UPDATE`,
       [ticketId, operatorSessionId]
     );
@@ -292,7 +292,7 @@ export async function getCurrentTicketForOperator(operatorSessionId) {
      FROM tickets t
      JOIN services s ON t.service_id = s.id
      LEFT JOIN windows w ON t.window_id = w.id
-     WHERE t.operator_session_id = $1 AND t.status IN ('called', 'in_service')
+     WHERE t.operator_session_id = $1 AND t.status IN ('called', 'in_service', 'transferred')
      ORDER BY t.called_at DESC
      LIMIT 1`,
     [operatorSessionId]

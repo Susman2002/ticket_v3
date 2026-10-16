@@ -1,7 +1,6 @@
 import { Component, inject, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { OperatorService } from '../../core/services/operator.service';
 import { TicketService } from '../../core/services/ticket.service';
@@ -170,7 +169,7 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <!-- Iniciar Atención -->
-                      @if (currentTicket()?.status === 'called') {
+                      @if (['called', 'transferred'].includes(currentTicket()?.status || '')) {
                         <app-action-button
                           label="Iniciar atención"
                           variant="success"
@@ -194,7 +193,7 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                       }
 
                       <!-- Cancelar Atención -->
-                      @if (['waiting', 'called', 'in_service'].includes(currentTicket()?.status || '')) {
+                      @if (['waiting', 'called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
                         <app-action-button
                           label="Cancelar atención"
                           variant="danger"
@@ -206,7 +205,7 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                       }
 
                       <!-- Transferir -->
-                      @if (['called', 'in_service'].includes(currentTicket()?.status || '')) {
+                      @if (['called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
                         <div class="sm:col-span-2">
                           <label class="block text-sm font-medium text-gray-700 mb-2">Transferir a otra ventanilla</label>
                           <app-transfer-modal
@@ -283,7 +282,8 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                   variant="primary"
                   size="lg"
                   [loading]="callingNext"
-                  [disabled]="!currentSession()"
+                  [disabled]="!canCallNext()"
+                  [tooltip]="hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para llamar al siguiente' : ''"
                   icon="play"
                   class="w-full"
                   (onClick)="callNext()"
@@ -328,7 +328,6 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
 })
 export class OperatorComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
-  router = inject(Router);
   private operatorService = inject(OperatorService);
   private ticketService = inject(TicketService);
   private ws = inject(WebSocketService);
@@ -390,6 +389,10 @@ export class OperatorComponent implements OnInit, OnDestroy {
     }
   });
 
+  hasActiveTicket = computed(() => ['called', 'in_service'].includes(this.currentTicket()?.status || ''));
+
+  canCallNext = computed(() => !!this.currentSession() && !this.hasActiveTicket());
+
   ngOnInit(): void {
     this.loadInitialData();
     this.setupWebSocket();
@@ -443,8 +446,10 @@ export class OperatorComponent implements OnInit, OnDestroy {
   }
 
   loadActiveSessions(): void {
-    // We need an endpoint for this - for now we'll mock or skip
-    // In real app, add endpoint to get active sessions
+    this.operatorService.getActiveSessions().subscribe({
+      next: (sessions) => this.activeSessions.set(sessions),
+      error: () => this.activeSessions.set([])
+    });
   }
 
   setupWebSocket(): void {
@@ -465,13 +470,24 @@ export class OperatorComponent implements OnInit, OnDestroy {
     });
 
     this.ws.onTicketTransferred.pipe(takeUntil(this.destroy$)).subscribe(event => {
-      if (event.data.ticket.token === this.currentTicket()?.token) {
-        // Ticket was transferred away
+      const ticket = event.data.ticket;
+      if (this.currentTicket() && ticket.token === this.currentTicket()!.token) {
+        // Ticket was transferred away: keep session, clear current ticket
         this.currentTicket.set(null);
-        this.currentSession.set(null);
-        alert(`Turno transferido a ${event.data.ticket.window_name}`);
-        this.router.navigate(['/operator']);
+        alert(`Turno transferido a ${ticket.window_name}`);
+        const session = this.currentSession();
+        if (session) this.loadWaitingTickets(session.service_id);
+        this.loadActiveSessions();
+      } else if (ticket.operator_session_id === this.currentSession()?.id) {
+        // Ticket transferred to this session
+        this.currentTicket.set(ticket);
+        const session = this.currentSession();
+        if (session) this.loadWaitingTickets(session.service_id);
       }
+    });
+
+    this.ws.onOperatorSessionStarted.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.loadActiveSessions();
     });
 
     this.ws.onOperatorSessionEnded.pipe(takeUntil(this.destroy$)).subscribe(event => {
@@ -480,6 +496,7 @@ export class OperatorComponent implements OnInit, OnDestroy {
         this.currentTicket.set(null);
         this.waitingTickets.set([]);
       }
+      this.loadActiveSessions();
     });
   }
 
@@ -619,10 +636,11 @@ export class OperatorComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: () => {
         this.currentTicket.set(null);
-        this.currentSession.set(null);
         this.actionLoading = null;
         alert(`Turno transferido correctamente`);
-        this.router.navigate(['/operator']);
+        const session = this.currentSession();
+        if (session) this.loadWaitingTickets(session.service_id);
+        this.loadActiveSessions();
       },
       error: (err) => {
         this.actionLoading = null;
