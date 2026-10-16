@@ -226,6 +226,16 @@ export class TicketComponent implements OnInit, OnDestroy {
   }
 
   setupWebSocket(): void {
+    this.ws.onTicketCalled.pipe(takeUntil(this.destroy$)).subscribe(event => {
+      if (event.data.token === this.token) {
+        const current = this.ticket();
+        this.ticket.set(current ? { ...current, ...event.data } : event.data);
+        if (!current || current.status === 'waiting') {
+          this.playSound();
+        }
+      }
+    });
+
     this.ws.onTicketUpdated.pipe(takeUntil(this.destroy$)).subscribe(event => {
       if (event.data.token === this.token) {
         const wasWaiting = this.ticket()?.status === 'waiting';
