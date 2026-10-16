@@ -28,11 +28,11 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
       <main class="max-w-7xl mx-auto px-6 py-8">
         @if (!currentSession()) {
           <!-- Start Session Form -->
-          <div id="session-form" class="max-w-2xl mx-auto bg-white rounded-xl shadow-sm p-8">
+          <div id="session-form" class="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <div class="text-center mb-8">
-              <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                 </svg>
               </div>
               <h2 class="text-2xl font-bold text-gray-900">Iniciar sesión de trabajo</h2>
@@ -89,14 +89,55 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
           </div>
         } @else {
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Queue Summary -->
-            <section class="lg:col-span-1">
-              <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center justify-between mb-4">
-                  <h3 class="font-semibold text-gray-900">Colas de espera</h3>
+            <!-- Left: Session info + Queues -->
+            <aside class="lg:col-span-1 space-y-6">
+              <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Mi sesión</h3>
                   <app-session-status [session]="currentSession()"></app-session-status>
                 </div>
-                <div class="space-y-3">
+                <div class="p-5 space-y-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                      <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                      </svg>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs text-gray-500">Ventanilla</p>
+                      <p class="font-semibold text-gray-900 truncate">{{ currentSession()?.window_name }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
+                      <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                      </svg>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs text-gray-500">Trámite</p>
+                      <p class="font-semibold text-gray-900 truncate">{{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center shrink-0">
+                      <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs text-gray-500">Sesión iniciada</p>
+                      <p class="font-semibold text-gray-900">{{ formatTime(currentSession()?.started_at) }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div class="px-5 py-4 border-b border-gray-100">
+                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Colas de espera</h3>
+                </div>
+                <div class="p-5 space-y-3">
                   @for (queue of queueSummary(); track queue.service_id) {
                     <app-queue-card 
                       [queue]="queue" 
@@ -110,62 +151,63 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                   }
                 </div>
               </div>
-            </section>
+            </aside>
 
-            <!-- Current Ticket & Actions -->
+            <!-- Right: Current Ticket & Actions -->
             <section class="lg:col-span-2 space-y-6">
-              <div class="bg-white rounded-xl shadow-sm">
-                <div class="p-6 border-b border-gray-200">
-                  <h3 class="font-semibold text-gray-900 mb-4">Turno actual</h3>
-
+              <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Turno actual</h3>
                   @if (currentTicket()) {
-                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div>
-                        <p class="text-4xl font-bold font-mono text-gray-900">{{ currentTicket()?.display_number }}</p>
-                        <p class="text-sm text-gray-500 mt-1">{{ currentTicket()?.service_name }}</p>
-                      </div>
-                      <div class="flex flex-col sm:flex-row items-end sm:items-center gap-3">
-                        <span class="px-4 py-2 rounded-full text-lg font-medium" [ngClass]="statusClass()">
-                          {{ statusLabel() }}
-                        </span>
-                        <div class="text-sm text-gray-500">Ventanilla: {{ currentTicket()?.window_name }}</div>
-                      </div>
-                    </div>
-                    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p class="text-gray-500">Trámite</p>
-                        <p class="font-medium">{{ currentTicket()?.service_name }}</p>
-                      </div>
-                      <div>
-                        <p class="text-gray-500">Ventanilla</p>
-                        <p class="font-medium">{{ currentTicket()?.window_name }}</p>
-                      </div>
-                      <div>
-                        <p class="text-gray-500">Llamado</p>
-                        <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
-                      </div>
-                      <div>
-                        <p class="text-gray-500">{{ currentTicket()?.status === 'in_service' ? 'Iniciado' : 'Estado' }}</p>
-                        <p class="font-medium">{{ formatTime(currentTicket()?.started_at) || '—' }}</p>
-                      </div>
-                    </div>
-                  } @else {
-                    <div class="text-center py-10">
-                      <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                      </div>
-                      <p class="text-lg font-medium text-gray-900 mb-1">No hay turno en atención</p>
-                      <p class="text-gray-500">Presione "Llamar siguiente" para atender</p>
-                    </div>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium" [ngClass]="statusClass()">
+                      {{ statusLabel() }}
+                    </span>
                   }
                 </div>
 
                 @if (currentTicket()) {
+                  <div class="p-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-6">
+                      <div class="flex-1">
+                        <p class="text-5xl font-bold font-mono text-gray-900 tracking-wider">{{ currentTicket()?.display_number }}</p>
+                        <p class="text-gray-500 mt-2">{{ currentTicket()?.service_name }}</p>
+                      </div>
+                      <div class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                        <div>
+                          <p class="text-gray-500">Ventanilla</p>
+                          <p class="font-medium">{{ currentTicket()?.window_name }}</p>
+                        </div>
+                        <div>
+                          <p class="text-gray-500">Llamado</p>
+                          <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
+                        </div>
+                        <div>
+                          <p class="text-gray-500">Iniciado</p>
+                          <p class="font-medium">{{ formatTime(currentTicket()?.started_at) }}</p>
+                        </div>
+                        <div>
+                          <p class="text-gray-500">Creado</p>
+                          <p class="font-medium">{{ formatTime(currentTicket()?.created_at) }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="p-12 text-center">
+                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                    </div>
+                    <p class="text-lg font-medium text-gray-900 mb-1">No hay turno en atención</p>
+                    <p class="text-gray-500">Presione "Llamar siguiente" para atender</p>
+                  </div>
+                }
+
+                @if (currentTicket()) {
                   <!-- Actions -->
-                  <div class="p-6 space-y-4">
-                    <h3 class="font-semibold text-gray-900">Acciones</h3>
+                  <div class="p-6 border-t border-gray-100">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Acciones</h3>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <!-- Iniciar Atención -->
@@ -207,7 +249,6 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                       <!-- Transferir -->
                       @if (['called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
                         <div class="sm:col-span-2">
-                          <label class="block text-sm font-medium text-gray-700 mb-2">Transferir a otra ventanilla</label>
                           <app-transfer-modal
                             [isOpen]="transferModalOpen"
                             [ticketDisplayNumber]="currentTicket()?.display_number || ''"
@@ -218,7 +259,7 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                             (confirm)="confirmTransfer($event)"
                           ></app-transfer-modal>
                           <app-action-button
-                            label="Transferir"
+                            label="Transferir a otra ventanilla"
                             variant="info"
                             size="lg"
                             [loading]="actionLoading === 'transfer'"
@@ -231,43 +272,43 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                   </div>
 
                   <!-- History / Logs -->
-                  <div class="border-t border-gray-200">
-                    <div class="p-6 border-b border-gray-200">
-                      <h3 class="font-semibold text-gray-900">Historial del turno</h3>
+                  <div class="border-t border-gray-100 bg-gray-50/60">
+                    <div class="px-6 py-4">
+                      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Historial del turno</h3>
                     </div>
-                    <div class="divide-y divide-gray-200">
-                      <div class="p-4">
-                        <p class="text-sm text-gray-500">Creado</p>
-                        <p class="font-medium">{{ formatTime(currentTicket()?.created_at) }}</p>
+                    <div class="px-6 pb-6 space-y-2">
+                      <div class="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
+                        <p class="text-sm text-gray-600">Creado</p>
+                        <p class="text-sm font-medium text-gray-900">{{ formatTime(currentTicket()?.created_at) }}</p>
                       </div>
                       @if (currentTicket()?.called_at) {
-                        <div class="p-4 bg-blue-50">
+                        <div class="flex items-center justify-between bg-blue-50 rounded-lg border border-blue-100 px-4 py-3">
                           <p class="text-sm text-blue-700">Llamado - Ventanilla: {{ currentTicket()?.window_name }}</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
+                          <p class="text-sm font-medium text-blue-900">{{ formatTime(currentTicket()?.called_at) }}</p>
                         </div>
                       }
                       @if (currentTicket()?.started_at) {
-                        <div class="p-4 bg-green-50">
+                        <div class="flex items-center justify-between bg-green-50 rounded-lg border border-green-100 px-4 py-3">
                           <p class="text-sm text-green-700">Atención iniciada</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.started_at) }}</p>
+                          <p class="text-sm font-medium text-green-900">{{ formatTime(currentTicket()?.started_at) }}</p>
                         </div>
                       }
                       @if (currentTicket()?.completed_at) {
-                        <div class="p-4 bg-gray-50">
-                          <p class="text-sm text-gray-700">Completado</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.completed_at) }}</p>
+                        <div class="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
+                          <p class="text-sm text-gray-600">Completado</p>
+                          <p class="text-sm font-medium text-gray-900">{{ formatTime(currentTicket()?.completed_at) }}</p>
                         </div>
                       }
                       @if (currentTicket()?.cancelled_at) {
-                        <div class="p-4 bg-red-50">
+                        <div class="flex items-center justify-between bg-red-50 rounded-lg border border-red-100 px-4 py-3">
                           <p class="text-sm text-red-700">Cancelado</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
+                          <p class="text-sm font-medium text-red-900">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
                         </div>
                       }
                       @if (currentTicket()?.transferred_at) {
-                        <div class="p-4 bg-purple-50">
+                        <div class="flex items-center justify-between bg-purple-50 rounded-lg border border-purple-100 px-4 py-3">
                           <p class="text-sm text-purple-700">Transferido a {{ currentTicket()?.window_name }}</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.transferred_at) }}</p>
+                          <p class="text-sm font-medium text-purple-900">{{ formatTime(currentTicket()?.transferred_at) }}</p>
                         </div>
                       }
                     </div>
@@ -276,28 +317,36 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
               </div>
 
               <!-- Call Next Button -->
-              <div class="bg-white rounded-xl shadow-sm p-6">
-                <app-action-button
-                  label="Llamar siguiente"
-                  variant="primary"
-                  size="lg"
-                  [loading]="callingNext"
-                  [disabled]="!canCallNext()"
-                  [tooltip]="hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para llamar al siguiente' : ''"
-                  icon="play"
-                  class="w-full"
-                  (onClick)="callNext()"
-                ></app-action-button>
+              <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">Llamar siguiente</h3>
+                    <p class="text-sm text-gray-500">
+                      {{ hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para continuar' : 'Se llamará el primer turno en espera de ' + (currentSession()?.service_name || '') }}
+                    </p>
+                  </div>
+                  <app-action-button
+                    label="Llamar siguiente"
+                    variant="primary"
+                    size="lg"
+                    [loading]="callingNext"
+                    [disabled]="!canCallNext()"
+                    [tooltip]="hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para llamar al siguiente' : ''"
+                    icon="play"
+                    (onClick)="callNext()"
+                  ></app-action-button>
+                </div>
               </div>
             </section>
           </div>
 
           <!-- Waiting Tickets Detail -->
-          <div class="mt-8 bg-white rounded-xl shadow-sm">
-            <div class="p-6 border-b border-gray-200">
-              <h3 class="font-semibold text-gray-900">Detalle de cola - {{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})</h3>
+          <div class="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Turnos en espera — {{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})</h3>
+              <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full">{{ waitingTickets().length }}</span>
             </div>
-            <div class="divide-y divide-gray-200">
+            <div class="divide-y divide-gray-100">
               @if (waitingTickets().length === 0) {
                 <div class="p-10 text-center text-gray-500">
                   <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,10 +357,10 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
                 </div>
               } @else {
                 @for (ticket of waitingTickets(); track ticket.id; let i = $index) {
-                  <div class="p-5 hover:bg-gray-50 flex items-center gap-4 border-b border-gray-100 last:border-0 transition-colors">
-                    <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center font-mono font-bold text-blue-700">{{ i + 1 }}</div>
+                  <div class="px-6 py-4 hover:bg-gray-50 flex items-center gap-4 transition-colors">
+                    <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center font-mono font-bold text-blue-700">{{ i + 1 }}</div>
                     <div class="flex-1 min-w-0">
-                      <p class="font-medium text-gray-900 truncate">{{ ticket.display_number }}</p>
+                      <p class="font-semibold text-gray-900 truncate">{{ ticket.display_number }}</p>
                       <p class="text-sm text-gray-500">Creado: {{ formatTime(ticket.created_at) }}</p>
                     </div>
                     <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full whitespace-nowrap">En espera</span>
