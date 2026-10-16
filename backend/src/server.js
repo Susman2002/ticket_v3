@@ -303,6 +303,16 @@ app.get('/api/operator/session/current', authRequired, requireRole('operator', '
   }
 });
 
+app.get('/api/operator/sessions/active', authRequired, requireRole('operator', 'admin'), async (req, res) => {
+  try {
+    const sessions = await getActiveSessions();
+    res.json(sessions);
+  } catch (e) {
+    console.error('Error obteniendo sesiones activas:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Cola de espera (público para display, operador para panel)
 app.get('/api/queue/:service_id', async (req, res) => {
   try {
