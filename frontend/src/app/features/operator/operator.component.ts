@@ -14,66 +14,167 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
   standalone: true,
   imports: [CommonModule, FormsModule, OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, SessionStatusComponent, TransferModalComponent],
   template: `
-    <div class="min-h-screen bg-gray-100">
-      <!-- Header -->
-      <app-operator-header
-        [session]="currentSession()"
-        [username]="auth.user()?.username || ''"
-        [role]="auth.user()?.role || ''"
-        (onEndSession)="endSession()"
-        (onLogout)="logout()"
-        (onStartSession)="startSessionForm()"
-      ></app-operator-header>
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 text-slate-900">
+  <!-- Header -->
+  <app-operator-header
+    [session]="currentSession()"
+    [username]="auth.user()?.username || ''"
+    [role]="auth.user()?.role || ''"
+    (onEndSession)="endSession()"
+    (onLogout)="logout()"
+    (onStartSession)="startSessionForm()"
+  ></app-operator-header>
 
-      <main class="max-w-7xl mx-auto px-6 py-8">
-        @if (!currentSession()) {
-          <!-- Start Session Form -->
-          <div id="session-form" class="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-8">
-            <div class="text-center mb-8">
-              <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+  <!-- Modal -->
+  <app-transfer-modal
+    [isOpen]="transferModalOpen"
+    [ticketDisplayNumber]="currentTicket()?.display_number || ''"
+    [ticketServiceName]="currentTicket()?.service_name || ''"
+    [availableWindows]="transferWindows()"
+    [loading]="actionLoading === 'transfer'"
+    (close)="closeTransferModal()"
+    (confirm)="confirmTransfer($event)"
+  ></app-transfer-modal>
+
+  <main class="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+    @if (!currentSession()) {
+      <!-- ============ START SESSION ============ -->
+      <div id="session-form" class="grid lg:grid-cols-5 gap-8 lg:gap-14 items-center max-w-6xl mx-auto py-6 lg:py-10">
+        <!-- Left: branding + features -->
+        <div class="hidden lg:block lg:col-span-2 space-y-7">
+          <span class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold ring-1 ring-inset ring-indigo-200">
+            <span class="relative flex w-1.5 h-1.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+            </span>
+            Módulo de operador
+          </span>
+
+          <h1 class="text-4xl xl:text-5xl font-bold tracking-tight leading-[1.1] text-slate-900">
+            Inicia tu
+            <span class="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent">turno de atención</span>
+          </h1>
+
+          <p class="text-slate-600 leading-relaxed">
+            Configura tu ventanilla y trámite para comenzar a llamar a los ciudadanos en espera.
+          </p>
+
+          <ul class="space-y-4 pt-2">
+            <li class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                 </svg>
               </div>
-              <h2 class="text-2xl font-bold text-gray-900">Iniciar sesión de trabajo</h2>
-              <p class="text-gray-600 mt-1">Seleccione su ventanilla y el trámite a atender</p>
+              <div>
+                <p class="font-semibold text-slate-900 text-sm">Cola inteligente</p>
+                <p class="text-xs text-slate-500 mt-0.5">Los turnos se ordenan automáticamente por prioridad</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-semibold text-slate-900 text-sm">Tiempo real</p>
+                <p class="text-xs text-slate-500 mt-0.5">Sincronización instantánea vía WebSocket</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+              </div>
+              <div>
+                <p class="font-semibold text-slate-900 text-sm">Transferencias</p>
+                <p class="text-xs text-slate-500 mt-0.5">Deriva turnos a otras ventanillas activas</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Right: form card -->
+        <div class="lg:col-span-3">
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-indigo-100/60 overflow-hidden">
+            <div class="px-6 sm:px-8 pt-8 pb-6 border-b border-slate-100 bg-gradient-to-br from-indigo-50/70 via-white to-white">
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-lg sm:text-xl font-semibold tracking-tight text-slate-900">Iniciar sesión de trabajo</h2>
+                  <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Selecciona tu ventanilla y trámite</p>
+                </div>
+              </div>
             </div>
-            
-            @if (error) {
-              <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {{ error }}
-              </div>
-            }
 
-            <form (ngSubmit)="startSession()" class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Ventanilla</label>
-                <select
-                  [(ngModel)]="selectedWindowId"
-                  name="window_id"
-                  required
-                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="">Seleccione una ventanilla</option>
-                  @for (w of availableWindows(); track w.id) {
-                    <option [value]="w.id">{{ w.name }}</option>
-                  }
-                </select>
+            <form (ngSubmit)="startSession()" class="p-6 sm:p-8 space-y-6">
+              @if (error) {
+                <div class="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">
+                  <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z"/>
+                  </svg>
+                  <span>{{ error }}</span>
+                </div>
+              }
+
+              <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-700">Ventanilla</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                  </div>
+                  <select
+                    [(ngModel)]="selectedWindowId"
+                    name="window_id"
+                    required
+                    class="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium appearance-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition cursor-pointer"
+                  >
+                    <option value="">Seleccione una ventanilla</option>
+                    @for (w of availableWindows(); track w.id) {
+                      <option [value]="w.id">{{ w.name }}</option>
+                    }
+                  </select>
+                  <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Trámite a atender</label>
-                <select
-                  [(ngModel)]="selectedServiceId"
-                  name="service_id"
-                  required
-                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="">Seleccione un trámite</option>
-                  @for (s of activeServices(); track s.id) {
-                    <option [value]="s.id">{{ s.name }} ({{ s.prefix }})</option>
-                  }
-                </select>
+              <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-700">Trámite a atender</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                  </div>
+                  <select
+                    [(ngModel)]="selectedServiceId"
+                    name="service_id"
+                    required
+                    class="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium appearance-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition cursor-pointer"
+                  >
+                    <option value="">Seleccione un trámite</option>
+                    @for (s of activeServices(); track s.id) {
+                      <option [value]="s.id">{{ s.name }} ({{ s.prefix }})</option>
+                    }
+                  </select>
+                  <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
 
               <app-action-button
@@ -87,293 +188,362 @@ import { OperatorHeaderComponent, QueueCardComponent, ActionButtonComponent, Ses
               ></app-action-button>
             </form>
           </div>
-        } @else {
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left: Session info + Queues -->
-            <aside class="lg:col-span-1 space-y-6">
-              <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Mi sesión</h3>
-                  <app-session-status [session]="currentSession()"></app-session-status>
+        </div>
+      </div>
+    } @else {
+      <!-- ============ DASHBOARD ============ -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- ===== Sidebar ===== -->
+        <aside class="lg:col-span-4 xl:col-span-3 space-y-5">
+
+          <!-- Mi sesión -->
+          <div class="relative bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400"></div>
+
+            <div class="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="relative flex w-2 h-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mi sesión</h3>
+              </div>
+              <app-session-status [session]="currentSession()"></app-session-status>
+            </div>
+
+            <div class="p-5 space-y-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                  </svg>
                 </div>
-                <div class="p-5 space-y-4">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
-                      <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                      </svg>
-                    </div>
-                    <div class="min-w-0">
-                      <p class="text-xs text-gray-500">Ventanilla</p>
-                      <p class="font-semibold text-gray-900 truncate">{{ currentSession()?.window_name }}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
-                      <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                      </svg>
-                    </div>
-                    <div class="min-w-0">
-                      <p class="text-xs text-gray-500">Trámite</p>
-                      <p class="font-semibold text-gray-900 truncate">{{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center shrink-0">
-                      <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                    </div>
-                    <div class="min-w-0">
-                      <p class="text-xs text-gray-500">Sesión iniciada</p>
-                      <p class="font-semibold text-gray-900">{{ formatTime(currentSession()?.started_at) }}</p>
-                    </div>
-                  </div>
+                <div class="min-w-0">
+                  <p class="text-xs text-slate-500 font-medium">Ventanilla</p>
+                  <p class="font-semibold text-slate-900 truncate">{{ currentSession()?.window_name }}</p>
                 </div>
               </div>
 
-              <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div class="px-5 py-4 border-b border-gray-100">
-                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Colas de espera</h3>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                  </svg>
                 </div>
-                <div class="p-5 space-y-3">
-                  @for (queue of queueSummary(); track queue.service_id) {
-                    <app-queue-card 
-                      [queue]="queue" 
-                      [isActive]="queue.service_id === currentSession()?.service_id">
-                    </app-queue-card>
-                  }
-                  @if (queueSummary().length === 0) {
-                    <div class="text-center py-8 text-gray-500">
-                      <p>No hay trámites configurados</p>
-                    </div>
-                  }
+                <div class="min-w-0">
+                  <p class="text-xs text-slate-500 font-medium">Trámite</p>
+                  <p class="font-semibold text-slate-900 truncate">
+                    {{ currentSession()?.service_name }}
+                    <span class="text-slate-400 font-normal">({{ currentSession()?.service_prefix }})</span>
+                  </p>
                 </div>
               </div>
-            </aside>
 
-            <!-- Right: Current Ticket & Actions -->
-            <section class="lg:col-span-2 space-y-6">
-              <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Turno actual</h3>
-                  @if (currentTicket()) {
-                    <span class="px-3 py-1 rounded-full text-sm font-medium" [ngClass]="statusClass()">
-                      {{ statusLabel() }}
-                    </span>
-                  }
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
                 </div>
-
-                @if (currentTicket()) {
-                  <div class="p-6">
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-6">
-                      <div class="flex-1">
-                        <p class="text-5xl font-bold font-mono text-gray-900 tracking-wider">{{ currentTicket()?.display_number }}</p>
-                        <p class="text-gray-500 mt-2">{{ currentTicket()?.service_name }}</p>
-                      </div>
-                      <div class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                        <div>
-                          <p class="text-gray-500">Ventanilla</p>
-                          <p class="font-medium">{{ currentTicket()?.window_name }}</p>
-                        </div>
-                        <div>
-                          <p class="text-gray-500">Llamado</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.called_at) }}</p>
-                        </div>
-                        <div>
-                          <p class="text-gray-500">Iniciado</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.started_at) }}</p>
-                        </div>
-                        <div>
-                          <p class="text-gray-500">Creado</p>
-                          <p class="font-medium">{{ formatTime(currentTicket()?.created_at) }}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                } @else {
-                  <div class="p-12 text-center">
-                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                    </div>
-                    <p class="text-lg font-medium text-gray-900 mb-1">No hay turno en atención</p>
-                    <p class="text-gray-500">Presione "Llamar siguiente" para atender</p>
-                  </div>
-                }
-
-                @if (currentTicket()) {
-                  <!-- Actions -->
-                  <div class="p-6 border-t border-gray-100">
-                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Acciones</h3>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <!-- Iniciar Atención -->
-                      @if (['called', 'transferred'].includes(currentTicket()?.status || '')) {
-                        <app-action-button
-                          label="Iniciar atención"
-                          variant="success"
-                          size="lg"
-                          [loading]="actionLoading === 'start'"
-                          icon="play"
-                          (onClick)="startService()"
-                        ></app-action-button>
-                      }
-
-                      <!-- Completar Atención -->
-                      @if (currentTicket()?.status === 'in_service') {
-                        <app-action-button
-                          label="Completar atención"
-                          variant="primary"
-                          size="lg"
-                          [loading]="actionLoading === 'complete'"
-                          icon="check"
-                          (onClick)="completeService()"
-                        ></app-action-button>
-                      }
-
-                      <!-- Cancelar Atención -->
-                      @if (['waiting', 'called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
-                        <app-action-button
-                          label="Cancelar atención"
-                          variant="danger"
-                          size="lg"
-                          [loading]="actionLoading === 'cancel'"
-                          icon="x"
-                          (onClick)="confirmCancel()"
-                        ></app-action-button>
-                      }
-
-                      <!-- Transferir -->
-                      @if (['called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
-                        <div class="sm:col-span-2">
-                          <app-transfer-modal
-                            [isOpen]="transferModalOpen"
-                            [ticketDisplayNumber]="currentTicket()?.display_number || ''"
-                            [ticketServiceName]="currentTicket()?.service_name || ''"
-                            [availableWindows]="transferWindows()"
-                            [loading]="actionLoading === 'transfer'"
-                            (close)="closeTransferModal()"
-                            (confirm)="confirmTransfer($event)"
-                          ></app-transfer-modal>
-                          <app-action-button
-                            label="Transferir a otra ventanilla"
-                            variant="info"
-                            size="lg"
-                            [loading]="actionLoading === 'transfer'"
-                            icon="door"
-                            (onClick)="openTransferModal()"
-                          ></app-action-button>
-                        </div>
-                      }
-                    </div>
-                  </div>
-
-                  <!-- History / Logs -->
-                  <div class="border-t border-gray-100 bg-gray-50/60">
-                    <div class="px-6 py-4">
-                      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Historial del turno</h3>
-                    </div>
-                    <div class="px-6 pb-6 space-y-2">
-                      <div class="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
-                        <p class="text-sm text-gray-600">Creado</p>
-                        <p class="text-sm font-medium text-gray-900">{{ formatTime(currentTicket()?.created_at) }}</p>
-                      </div>
-                      @if (currentTicket()?.called_at) {
-                        <div class="flex items-center justify-between bg-blue-50 rounded-lg border border-blue-100 px-4 py-3">
-                          <p class="text-sm text-blue-700">Llamado - Ventanilla: {{ currentTicket()?.window_name }}</p>
-                          <p class="text-sm font-medium text-blue-900">{{ formatTime(currentTicket()?.called_at) }}</p>
-                        </div>
-                      }
-                      @if (currentTicket()?.started_at) {
-                        <div class="flex items-center justify-between bg-green-50 rounded-lg border border-green-100 px-4 py-3">
-                          <p class="text-sm text-green-700">Atención iniciada</p>
-                          <p class="text-sm font-medium text-green-900">{{ formatTime(currentTicket()?.started_at) }}</p>
-                        </div>
-                      }
-                      @if (currentTicket()?.completed_at) {
-                        <div class="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
-                          <p class="text-sm text-gray-600">Completado</p>
-                          <p class="text-sm font-medium text-gray-900">{{ formatTime(currentTicket()?.completed_at) }}</p>
-                        </div>
-                      }
-                      @if (currentTicket()?.cancelled_at) {
-                        <div class="flex items-center justify-between bg-red-50 rounded-lg border border-red-100 px-4 py-3">
-                          <p class="text-sm text-red-700">Cancelado</p>
-                          <p class="text-sm font-medium text-red-900">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
-                        </div>
-                      }
-                      @if (currentTicket()?.transferred_at) {
-                        <div class="flex items-center justify-between bg-purple-50 rounded-lg border border-purple-100 px-4 py-3">
-                          <p class="text-sm text-purple-700">Transferido a {{ currentTicket()?.window_name }}</p>
-                          <p class="text-sm font-medium text-purple-900">{{ formatTime(currentTicket()?.transferred_at) }}</p>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-
-              <!-- Call Next Button -->
-              <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div class="flex-1">
-                    <h3 class="font-semibold text-gray-900">Llamar siguiente</h3>
-                    <p class="text-sm text-gray-500">
-                      {{ hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para continuar' : 'Se llamará el primer turno en espera de ' + (currentSession()?.service_name || '') }}
-                    </p>
-                  </div>
-                  <app-action-button
-                    label="Llamar siguiente"
-                    variant="primary"
-                    size="lg"
-                    [loading]="callingNext"
-                    [disabled]="!canCallNext()"
-                    [tooltip]="hasActiveTicket() ? 'Complete, cancele o transfiera el turno actual para llamar al siguiente' : ''"
-                    icon="play"
-                    (onClick)="callNext()"
-                  ></app-action-button>
+                <div class="min-w-0">
+                  <p class="text-xs text-slate-500 font-medium">Sesión iniciada</p>
+                  <p class="font-semibold text-slate-900 font-mono">{{ formatTime(currentSession()?.started_at) }}</p>
                 </div>
               </div>
-            </section>
+            </div>
           </div>
 
-          <!-- Waiting Tickets Detail -->
-          <div class="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Turnos en espera — {{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})</h3>
-              <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full">{{ waitingTickets().length }}</span>
+          <!-- Colas -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Colas de espera</h3>
             </div>
-            <div class="divide-y divide-gray-100">
-              @if (waitingTickets().length === 0) {
-                <div class="p-10 text-center text-gray-500">
-                  <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                  <p class="text-lg">No hay turnos en espera</p>
-                  <p class="text-sm text-gray-400 mt-1">Los turnos aparecerán aquí cuando los ciudadanos los saquen</p>
+            <div class="p-4 space-y-2.5">
+              @for (queue of queueSummary(); track queue.service_id) {
+                <app-queue-card
+                  [queue]="queue"
+                  [isActive]="queue.service_id === currentSession()?.service_id">
+                </app-queue-card>
+              }
+              @if (queueSummary().length === 0) {
+                <div class="text-center py-8 text-sm text-slate-400">
+                  No hay trámites configurados
                 </div>
-              } @else {
-                @for (ticket of waitingTickets(); track ticket.id; let i = $index) {
-                  <div class="px-6 py-4 hover:bg-gray-50 flex items-center gap-4 transition-colors">
-                    <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center font-mono font-bold text-blue-700">{{ i + 1 }}</div>
-                    <div class="flex-1 min-w-0">
-                      <p class="font-semibold text-gray-900 truncate">{{ ticket.display_number }}</p>
-                      <p class="text-sm text-gray-500">Creado: {{ formatTime(ticket.created_at) }}</p>
-                    </div>
-                    <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full whitespace-nowrap">En espera</span>
-                  </div>
-                }
               }
             </div>
           </div>
+        </aside>
+
+        <!-- ===== Main ===== -->
+        <section class="lg:col-span-8 xl:col-span-9 space-y-6">
+
+          <!-- Turno actual -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 flex items-center justify-between border-b border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Turno actual</h3>
+              @if (currentTicket()) {
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" [ngClass]="statusClass()">
+                  <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+                  {{ statusLabel() }}
+                </span>
+              }
+            </div>
+
+            @if (currentTicket()) {
+              <!-- Dark hero -->
+              <div class="relative overflow-hidden px-6 sm:px-8 py-8 sm:py-10 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-900">
+                <div class="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl -mr-40 -mt-40 pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl -ml-32 -mb-32 pointer-events-none"></div>
+
+                <div class="relative flex flex-col sm:flex-row sm:items-center gap-8">
+                  <div class="shrink-0">
+                    <p class="text-[10px] font-bold text-indigo-300 uppercase tracking-[0.2em] mb-2">Ticket actual</p>
+                    <p class="text-6xl sm:text-7xl lg:text-8xl font-black font-mono text-white tracking-tighter leading-none">
+                      {{ currentTicket()?.display_number }}
+                    </p>
+                    <p class="text-sm text-slate-300 mt-3 font-medium">{{ currentTicket()?.service_name }}</p>
+                  </div>
+
+                  <div class="hidden sm:block w-px h-32 bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
+
+                  <div class="grid grid-cols-2 gap-x-8 gap-y-4 text-sm flex-1">
+                    <div>
+                      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ventanilla</p>
+                      <p class="font-semibold text-white mt-1">{{ currentTicket()?.window_name }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Llamado</p>
+                      <p class="font-semibold text-white mt-1 font-mono">{{ formatTime(currentTicket()?.called_at) }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Iniciado</p>
+                      <p class="font-semibold text-white mt-1 font-mono">{{ formatTime(currentTicket()?.started_at) }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Creado</p>
+                      <p class="font-semibold text-white mt-1 font-mono">{{ formatTime(currentTicket()?.created_at) }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Acciones -->
+              <div class="px-6 py-5 border-t border-slate-100">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Acciones</h3>
+                <div class="flex flex-wrap gap-3">
+                  @if (['called', 'transferred'].includes(currentTicket()?.status || '')) {
+                    <div class="flex-1 min-w-[180px]">
+                      <app-action-button
+                        label="Iniciar atención"
+                        variant="success"
+                        size="lg"
+                        [loading]="actionLoading === 'start'"
+                        icon="play"
+                        (onClick)="startService()"
+                      ></app-action-button>
+                    </div>
+                  }
+
+                  @if (currentTicket()?.status === 'in_service') {
+                    <div class="flex-1 min-w-[180px]">
+                      <app-action-button
+                        label="Completar atención"
+                        variant="primary"
+                        size="lg"
+                        [loading]="actionLoading === 'complete'"
+                        icon="check"
+                        (onClick)="completeService()"
+                      ></app-action-button>
+                    </div>
+                  }
+
+                  @if (['called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
+                    <div class="flex-1 min-w-[180px]">
+                      <app-action-button
+                        label="Transferir"
+                        variant="info"
+                        size="lg"
+                        [loading]="actionLoading === 'transfer'"
+                        icon="door"
+                        (onClick)="openTransferModal()"
+                      ></app-action-button>
+                    </div>
+                  }
+
+                  @if (['waiting', 'called', 'in_service', 'transferred'].includes(currentTicket()?.status || '')) {
+                    <div class="flex-1 min-w-[180px]">
+                      <app-action-button
+                        label="Cancelar"
+                        variant="danger"
+                        size="lg"
+                        [loading]="actionLoading === 'cancel'"
+                        icon="x"
+                        (onClick)="confirmCancel()"
+                      ></app-action-button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Historial -->
+              <div class="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Historial del turno</h3>
+                <ol class="relative space-y-4 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+                  <li class="relative pl-7">
+                    <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-slate-300 ring-4 ring-slate-50"></span>
+                    <div class="flex items-center justify-between gap-3">
+                      <p class="text-sm font-medium text-slate-700">Creado</p>
+                      <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.created_at) }}</p>
+                    </div>
+                  </li>
+                  @if (currentTicket()?.called_at) {
+                    <li class="relative pl-7">
+                      <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-sky-500 ring-4 ring-slate-50"></span>
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-medium text-slate-700">Llamado · <span class="text-slate-500 font-normal">{{ currentTicket()?.window_name }}</span></p>
+                        <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.called_at) }}</p>
+                      </div>
+                    </li>
+                  }
+                  @if (currentTicket()?.started_at) {
+                    <li class="relative pl-7">
+                      <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-4 ring-slate-50"></span>
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-medium text-slate-700">Atención iniciada</p>
+                        <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.started_at) }}</p>
+                      </div>
+                    </li>
+                  }
+                  @if (currentTicket()?.completed_at) {
+                    <li class="relative pl-7">
+                      <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-4 ring-slate-50"></span>
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-medium text-slate-700">Completado</p>
+                        <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.completed_at) }}</p>
+                      </div>
+                    </li>
+                  }
+                  @if (currentTicket()?.cancelled_at) {
+                    <li class="relative pl-7">
+                      <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-rose-500 ring-4 ring-slate-50"></span>
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-medium text-slate-700">Cancelado</p>
+                        <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.cancelled_at) }}</p>
+                      </div>
+                    </li>
+                  }
+                  @if (currentTicket()?.transferred_at) {
+                    <li class="relative pl-7">
+                      <span class="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-violet-500 ring-4 ring-slate-50"></span>
+                      <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-medium text-slate-700">Transferido · <span class="text-slate-500 font-normal">{{ currentTicket()?.window_name }}</span></p>
+                        <p class="text-xs font-mono text-slate-500">{{ formatTime(currentTicket()?.transferred_at) }}</p>
+                      </div>
+                    </li>
+                  }
+                </ol>
+              </div>
+            } @else {
+              <!-- Empty state -->
+              <div class="p-12 sm:p-16 text-center">
+                <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center mx-auto mb-5">
+                  <svg class="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <p class="text-lg font-semibold text-slate-900">Sin turno en atención</p>
+                <p class="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">Presiona "Llamar siguiente" para comenzar con el primer ciudadano en espera</p>
+              </div>
+            }
+          </div>
+
+          <!-- Llamar siguiente -->
+          <div class="bg-gradient-to-br from-indigo-50/80 to-white rounded-2xl border border-indigo-100 shadow-sm p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-semibold text-slate-900">Llamar siguiente</h3>
+                  @if (!hasActiveTicket() && waitingTickets().length > 0) {
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200">
+                      {{ waitingTickets().length }} en cola
+                    </span>
+                  }
+                </div>
+                <p class="text-sm text-slate-600 mt-1">
+                  {{ hasActiveTicket()
+                      ? 'Completa, cancela o transfiere el turno actual para continuar'
+                      : 'Se llamará el primer turno en espera de ' + (currentSession()?.service_name || '') }}
+                </p>
+              </div>
+              <app-action-button
+                label="Llamar siguiente"
+                variant="primary"
+                size="lg"
+                [loading]="callingNext"
+                [disabled]="!canCallNext()"
+                [tooltip]="hasActiveTicket() ? 'Completa, cancela o transfiere el turno actual para llamar al siguiente' : ''"
+                icon="play"
+                (onClick)="callNext()"
+              ></app-action-button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Turnos en espera ===== -->
+      <div class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 flex-wrap min-w-0">
+            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Turnos en espera
+            </h3>
+            <span class="text-xs text-slate-400 truncate">
+              {{ currentSession()?.service_name }} ({{ currentSession()?.service_prefix }})
+            </span>
+          </div>
+          <span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full ring-1 ring-inset ring-amber-200 shrink-0">
+            {{ waitingTickets().length }}
+          </span>
+        </div>
+
+        @if (waitingTickets().length === 0) {
+          <div class="p-12 sm:p-16 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <p class="text-base font-semibold text-slate-900">No hay turnos en espera</p>
+            <p class="text-sm text-slate-500 mt-1">Los turnos aparecerán aquí cuando los ciudadanos los saquen</p>
+          </div>
+        } @else {
+          <ul class="divide-y divide-slate-100">
+            @for (ticket of waitingTickets(); track ticket.id; let i = $index) {
+              <li class="px-4 sm:px-6 py-4 hover:bg-gradient-to-r hover:from-indigo-50/40 hover:to-transparent flex items-center gap-4 transition-all">
+                <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-lg shadow-indigo-500/20">
+                  {{ i + 1 }}
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="font-mono font-bold text-slate-900 truncate text-base">{{ ticket.display_number }}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Creado: {{ formatTime(ticket.created_at) }}</p>
+                </div>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-semibold rounded-full ring-1 ring-inset ring-amber-200 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span class="hidden sm:inline">En espera</span>
+                </span>
+              </li>
+            }
+          </ul>
         }
-      </main>
-    </div>
-  `,
-  styles: []
+      </div>
+    }
+  </main>
+</div>
+`,
+styles: [`
+  :host { display: block; }
+`]
 })
 export class OperatorComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
@@ -521,14 +691,12 @@ export class OperatorComponent implements OnInit, OnDestroy {
     this.ws.onTicketTransferred.pipe(takeUntil(this.destroy$)).subscribe(event => {
       const ticket = event.data.ticket;
       if (this.currentTicket() && ticket.token === this.currentTicket()!.token) {
-        // Ticket was transferred away: keep session, clear current ticket
         this.currentTicket.set(null);
         alert(`Turno transferido a ${ticket.window_name}`);
         const session = this.currentSession();
         if (session) this.loadWaitingTickets(session.service_id);
         this.loadActiveSessions();
       } else if (ticket.operator_session_id === this.currentSession()?.id) {
-        // Ticket transferred to this session
         this.currentTicket.set(ticket);
         const session = this.currentSession();
         if (session) this.loadWaitingTickets(session.service_id);
@@ -563,7 +731,6 @@ export class OperatorComponent implements OnInit, OnDestroy {
         this.loading = false;
         this.loadWaitingTickets(session.service_id);
         this.loadActiveSessions();
-        // Reset form
         this.selectedWindowId = null;
         this.selectedServiceId = null;
       },
@@ -678,7 +845,7 @@ export class OperatorComponent implements OnInit, OnDestroy {
     if (!this.currentTicket()) return;
     this.actionLoading = 'transfer';
     this.transferModalOpen = false;
-    
+
     this.operatorService.transferTicket({
       ticket_id: this.currentTicket()!.id,
       target_window_id: windowId
