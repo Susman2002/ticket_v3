@@ -1,11 +1,8 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TicketService } from '../../core/services/ticket.service';
 import { Service, Ticket } from '../../core/models/ticket.model';
-import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/components';
 
 const TERMINAL_STATUSES: Ticket['status'][] = ['completed', 'cancelled'];
 
@@ -29,7 +26,7 @@ function clearStoredTicketToken(): void {
 @Component({
   selector: 'app-kiosk',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, AlertSoundComponent, StatusBadgeComponent],
+  imports: [CommonModule],
   template: `
     <div class="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-12">
       <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
@@ -62,7 +59,7 @@ function clearStoredTicketToken(): void {
         </div>
 
         <!-- State 3: Service Selection -->
-        <div *ngIf="validated && qrValid && canRequestNewTicket() && !checkingStoredTicket() && !ticketValue()">
+        <div *ngIf="validated && qrValid && !checkingStoredTicket()">
           <div class="text-center mb-10">
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,95 +117,10 @@ function clearStoredTicketToken(): void {
             </div>
           </div>
         </div>
-
-        <!-- State 4: Ticket Active (waiting, called, in_service, transferred) -->
-        <div *ngIf="ticketValue() && !canRequestNewTicket()" class="text-center animate-fade-in">
-          <div class="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-8">
-            <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-          </div>
-          <h2 class="text-3xl font-bold text-gray-900 mb-3">Su turno está en proceso</h2>
-          <p class="text-gray-600 mb-8">Número de turno:</p>
-          
-          <div class="bg-gray-900 text-white rounded-2xl p-10 mb-8 shadow-lg">
-            <p class="text-sm text-gray-400 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
-            <p class="text-7xl font-bold font-mono tracking-widest">{{ ticketValue()!.display_number }}</p>
-            <p class="text-lg text-gray-300 mt-4">{{ ticketValue()!.service_name }}</p>
-          </div>
-
-          <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left border border-gray-200">
-            <div class="flex items-center justify-between mb-4">
-              <p class="text-sm text-gray-600">Código de seguimiento</p>
-              <button (click)="copyTrackingCode()" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
-                Copiar
-              </button>
-            </div>
-            <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue()!.token }}</p>
-            <p class="text-xs text-gray-500 mt-3">Consulte su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
-            
-            <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p class="text-sm text-blue-800 font-medium">
-                <strong>Estado actual:</strong> 
-                <app-status-badge [status]="ticketValue()!.status"></app-status-badge>
-              </p>
-              <p class="text-xs text-blue-700 mt-2">No puede solicitar otro turno hasta que este se complete o cancele.</p>
-            </div>
-          </div>
-
-          <button (click)="newTicket()" 
-                  [disabled]="!canRequestNewTicket()"
-                  class="w-full py-4 bg-gray-300 text-gray-500 rounded-xl font-semibold text-lg cursor-not-allowed">
-            Sacar otro turno
-          </button>
-        </div>
-
-        <!-- State 5: Ticket Completed/Cancelled - Allow new ticket -->
-        <div *ngIf="ticketValue() && canRequestNewTicket()" class="text-center animate-fade-in">
-          <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
-            <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-          </div>
-          <h2 class="text-3xl font-bold text-gray-900 mb-3">Turno finalizado</h2>
-          <p class="text-gray-600 mb-8">Su turno anterior:</p>
-          
-          <div class="bg-gray-100 text-gray-900 rounded-2xl p-10 mb-8 shadow-lg">
-            <p class="text-sm text-gray-500 mb-2 tracking-wide uppercase">NÚMERO DE TURNO</p>
-            <p class="text-7xl font-bold font-mono tracking-widest">{{ ticketValue()!.display_number }}</p>
-            <p class="text-lg text-gray-600 mt-4">{{ ticketValue()!.service_name }}</p>
-            <app-status-badge [status]="ticketValue()!.status" class="mt-4 inline-block"></app-status-badge>
-          </div>
-
-          <div class="bg-gray-50 rounded-xl p-6 mb-8 text-left border border-gray-200">
-            <div class="flex items-center justify-between mb-4">
-              <p class="text-sm text-gray-600">Código de seguimiento</p>
-              <button (click)="copyTrackingCode()" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
-                Copiar
-              </button>
-            </div>
-            <p class="font-mono text-base text-gray-900 break-all bg-white p-3 rounded-lg border">{{ ticketValue()!.token }}</p>
-            <p class="text-xs text-gray-500 mt-3">Consulte su estado en <a routerLink="/ticket/{{ ticketValue()!.token }}" class="text-blue-600 hover:underline font-medium">seguimiento</a></p>
-          </div>
-
-          <button (click)="newTicket()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            Sacar otro turno
-          </button>
-        </div>
       </div>
-
-      <app-alert-sound [trigger]="soundTrigger()"></app-alert-sound>
     </div>
   `,
-  styles: [`
-    @keyframes fade-in {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .animate-fade-in {
-      animation: fade-in 0.5s ease-out;
-    }
-  `]
+  styles: []
 })
 export class KioskComponent implements OnInit {
   private route = inject(ActivatedRoute);
@@ -221,18 +133,8 @@ export class KioskComponent implements OnInit {
   services = signal<Service[]>([]);
   servicesLoading = signal(true);
   servicesError = signal(false);
-  private _ticket = signal<Ticket | null>(null);
-  selectedServiceId: number | null = null;
   qrToken = '';
-  soundTrigger = signal(0);
   checkingStoredTicket = signal(false);
-  canRequestNewTicket = signal(false);
-
-  // Expose ticket signal as readonly for template binding
-  public readonly ticket = this._ticket.asReadonly();
-  
-  // Computed for template usage to ensure proper typing
-  public readonly ticketValue = computed(() => this._ticket());
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -268,7 +170,6 @@ export class KioskComponent implements OnInit {
 
   private goToValidation(): void {
     this.checkingStoredTicket.set(false);
-    this.canRequestNewTicket.set(true);
     this.validateQR();
   }
 
@@ -308,18 +209,14 @@ export class KioskComponent implements OnInit {
   }
 
   selectService(service: Service): void {
-    if (!this.canRequestNewTicket()) return;
-    
-    this.selectedServiceId = service.id;
+    if (this.loading) return;
+
     this.loading = true;
 
     this.ticketService.createTicket({ service_id: service.id, qr_token: this.qrToken }).subscribe({
       next: (ticket) => {
-        this._ticket.set(ticket);
         storeTicketToken(ticket.token);
-        this.loading = false;
-        this.canRequestNewTicket.set(false);
-        this.playSound();
+        this.router.navigate(['/ticket', ticket.token]);
       },
       error: (err) => {
         this.loading = false;
@@ -328,30 +225,10 @@ export class KioskComponent implements OnInit {
     });
   }
 
-  newTicket(): void {
-    if (!this.canRequestNewTicket()) return;
-    
-    this._ticket.set(null);
-    this.selectedServiceId = null;
-    clearStoredTicketToken();
-  }
-
   retry(): void {
     this.validated = false;
     this.qrValid = false;
     this.validateQR();
-  }
-
-  copyTrackingCode(): void {
-    if (this._ticket()) {
-      navigator.clipboard.writeText(this._ticket()!.token).then(() => {
-        // Could show a toast here
-      });
-    }
-  }
-
-  playSound(): void {
-    this.soundTrigger.update(t => t + 1);
   }
 
   trackByServiceId(index: number, service: Service): number {
