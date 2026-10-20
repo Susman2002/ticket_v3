@@ -7,26 +7,23 @@ import { TicketService } from '../../core/services/ticket.service';
 import { Service, Ticket } from '../../core/models/ticket.model';
 import { AlertSoundComponent, StatusBadgeComponent } from '../../shared/components';
 
-const ACTIVE_STATUSES: Ticket['status'][] = ['waiting', 'called', 'in_service', 'transferred'];
 const TERMINAL_STATUSES: Ticket['status'][] = ['completed', 'cancelled'];
 
-function getStorageKey(qrToken: string): string {
-  return `kiosk_ticket_${qrToken}`;
-}
+const STORAGE_KEY = 'kiosk_ticket';
 
-function getStoredTicketToken(qrToken: string): string | null {
+function getStoredTicketToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(getStorageKey(qrToken));
+  return localStorage.getItem(STORAGE_KEY);
 }
 
-function storeTicketToken(qrToken: string, ticketToken: string): void {
+function storeTicketToken(ticketToken: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(getStorageKey(qrToken), ticketToken);
+  localStorage.setItem(STORAGE_KEY, ticketToken);
 }
 
-function clearStoredTicketToken(qrToken: string): void {
+function clearStoredTicketToken(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(getStorageKey(qrToken));
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 @Component({
@@ -37,7 +34,7 @@ function clearStoredTicketToken(qrToken: string): void {
     <div class="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-12">
       <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <!-- State 1: Validating QR -->
-        <div *ngIf="!validated" class="text-center py-12">
+        <div *ngIf="!validated && !checkingStoredTicket()" class="text-center py-12">
           <div class="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p class="text-gray-600 mt-4 text-lg">Validando código QR...</p>
         </div>
@@ -59,7 +56,7 @@ function clearStoredTicketToken(qrToken: string): void {
         </div>
 
         <!-- State: Checking for existing ticket -->
-        <div *ngIf="validated && qrValid && checkingStoredTicket()" class="text-center py-12">
+        <div *ngIf="checkingStoredTicket()" class="text-center py-12">
           <div class="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p class="text-gray-600 mt-4 text-lg">Verificando su turno...</p>
         </div>
@@ -240,42 +237,39 @@ export class KioskComponent implements OnInit {
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
       this.qrToken = params.get('token') || '';
-      this.validateQR();
+      this.checkStoredTicket();
     });
     this.loadServices();
   }
 
   private checkStoredTicket(): void {
-    if (!this.qrToken) return;
-    
-    const storedToken = getStoredTicketToken(this.qrToken);
+    const storedToken = getStoredTicketToken();
     if (!storedToken) {
-      this.canRequestNewTicket.set(true);
+      this.goToValidation();
       return;
     }
 
     this.checkingStoredTicket.set(true);
     this.ticketService.getTicket(storedToken).subscribe({
       next: (ticket) => {
-        this._ticket.set(ticket);
-        this.checkingStoredTicket.set(false);
-        
         if (TERMINAL_STATUSES.includes(ticket.status)) {
-          // Ticket completed/cancelled, allow new ticket and clear storage
-          clearStoredTicketToken(this.qrToken);
-          this.canRequestNewTicket.set(true);
+          clearStoredTicketToken();
+          this.goToValidation();
         } else {
-          // Active ticket, show it and prevent new ticket
-          this.canRequestNewTicket.set(false);
+          this.router.navigate(['/ticket', storedToken]);
         }
       },
       error: () => {
-        // Ticket not found or error, clear storage and allow new ticket
-        clearStoredTicketToken(this.qrToken);
-        this.checkingStoredTicket.set(false);
-        this.canRequestNewTicket.set(true);
+        clearStoredTicketToken();
+        this.goToValidation();
       }
     });
+  }
+
+  private goToValidation(): void {
+    this.checkingStoredTicket.set(false);
+    this.canRequestNewTicket.set(true);
+    this.validateQR();
   }
 
   validateQR(): void {
@@ -289,9 +283,6 @@ export class KioskComponent implements OnInit {
       next: (res) => {
         this.validated = true;
         this.qrValid = res.valid;
-        if (res.valid) {
-          this.checkStoredTicket();
-        }
       },
       error: () => {
         this.validated = true;
@@ -325,7 +316,7 @@ export class KioskComponent implements OnInit {
     this.ticketService.createTicket({ service_id: service.id, qr_token: this.qrToken }).subscribe({
       next: (ticket) => {
         this._ticket.set(ticket);
-        storeTicketToken(this.qrToken, ticket.token);
+        storeTicketToken(ticket.token);
         this.loading = false;
         this.canRequestNewTicket.set(false);
         this.playSound();
@@ -342,7 +333,7 @@ export class KioskComponent implements OnInit {
     
     this._ticket.set(null);
     this.selectedServiceId = null;
-    clearStoredTicketToken(this.qrToken);
+    clearStoredTicketToken();
   }
 
   retry(): void {
